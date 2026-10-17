@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "PlayerApp (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "PlayerApp (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

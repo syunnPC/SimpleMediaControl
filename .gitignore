@@ -1,0 +1,39 @@
+# Local IDE state and machine-specific settings
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.pubxml.user
+
+# Build, publish and test output
+**/bin/
+**/obj/
+artifacts/
+TestResults/
+*.exe
+*.dll
+*.pdb
+*.dmp
+*.log
+*.binlog
+
+# Credentials and signing material
+.env
+.env.*
+!.env.example
+secrets.json
+*.pfx
+*.p12
+*.key
+*.pem
+*.publishsettings
+id_rsa
+id_ed25519
+
+# OS metadata
+Thumbs.db
+Desktop.ini
+.DS_Store
