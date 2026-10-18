@@ -7,6 +7,10 @@ dotnet run --project Tests/PlaybackChecks/PlaybackChecks.csproj -c Release
 ```
 
 Add `-- --stress` to publish an independent, silent media session for two minutes.
+
+Add `-- --inspect <path-to-PlayerApp.exe>` to read the current source metadata,
+playback status and timeline from an isolated worker. This diagnostic does not
+send playback commands or retrieve lyrics.
 The test changes native playback/timeline properties, handles the resulting events,
 renders from managed snapshots, and repeatedly forces collection/finalization.
 It requires actual native notifications and display activity to pass. It does not

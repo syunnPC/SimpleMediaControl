@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../PlayerApp/LyricsDocument.cs" Link="LyricsDocument.cs" />
+    <Compile Include="../../PlayerApp/LyricsClient.cs" Link="LyricsClient.cs" />
+    <Compile Include="../../PlayerApp/LyricsSearch.cs" Link="LyricsSearch.cs" />
+    <Compile Include="../../PlayerApp/LyricsFollowState.cs" Link="LyricsFollowState.cs" />
+    <Compile Include="../../PlayerApp/MediaProtocol.cs" Link="MediaProtocol.cs" />
+  </ItemGroup>
+</Project>

@@ -83,3 +83,43 @@ if (workerOption >= 0)
 {
     await ClientChecks.RunAsync(args[workerOption + 1]);
 }
+var inspectOption = Array.IndexOf(args, "--inspect");
+if (inspectOption >= 0)
+{
+    var gate = new object();
+    using var client = new MediaClient(System.IO.Path.GetFullPath(args[inspectOption + 1]), action => { lock (gate) { action(); } }, Console.WriteLine);
+    client.Start();
+    var inspectDeadline = System.Diagnostics.Stopwatch.StartNew();
+    while (true)
+    {
+        lock (gate)
+        {
+            if (client.IsConnected && System.Linq.Enumerable.Any(client.GetSessions(), session => session.Media.Title.Length > 0 && session.Timeline is not null))
+            {
+                break;
+            }
+        }
+        if (inspectDeadline.Elapsed > TimeSpan.FromSeconds(25))
+        {
+            throw new InvalidOperationException("No media snapshot received before the inspection deadline.");
+        }
+        await System.Threading.Tasks.Task.Delay(50);
+    }
+    lock (gate)
+    {
+        foreach (var session in client.GetSessions())
+        {
+            Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+            {
+                session.SourceAppUserModelId,
+                Status = session.Playback.PlaybackStatus.ToString(),
+                session.Media.Title,
+                session.Media.Artist,
+                session.Media.AlbumArtist,
+                session.Media.AlbumTitle,
+                Duration = session.Timeline?.EndTime.TotalSeconds,
+                Position = session.Timeline?.Position.TotalSeconds
+            }));
+        }
+    }
+}

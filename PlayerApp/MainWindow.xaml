@@ -13,8 +13,9 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid x:Name="RootGrid" Padding="12,10,10,8" RowSpacing="6">
+    <Grid x:Name="RootGrid" Padding="12,10,10,8">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -107,6 +108,26 @@
                 Spacing="2"
                 Margin="0,6,6,0">
                 <Button
+                    x:Name="LyricsButton"
+                    Width="28"
+                    Height="22"
+                    Style="{StaticResource GhostButton}"
+                    AutomationProperties.Name="歌詞を表示"
+                    ToolTipService.ToolTip="歌詞を表示"
+                    Click="OnLyricsClick">
+                    <FontIcon FontSize="13" Glyph="&#xE8F2;" />
+                </Button>
+                <Button
+                    x:Name="PinButton"
+                    Width="28"
+                    Height="22"
+                    Style="{StaticResource GhostButton}"
+                    AutomationProperties.Name="最前面に固定"
+                    ToolTipService.ToolTip="最前面に固定"
+                    Click="OnPinClick">
+                    <FontIcon x:Name="PinIcon" FontSize="12" Glyph="&#xE718;" />
+                </Button>
+                <Button
                     x:Name="MinimizeButton"
                     Width="32"
                     Height="20"
@@ -127,7 +148,7 @@
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="1" ColumnSpacing="8">
+        <Grid Grid.Row="1" ColumnSpacing="8" Margin="0,6,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -182,7 +203,7 @@
                 Text="--:--" />
         </Grid>
 
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="2" Margin="0,6,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -312,5 +333,45 @@
                 </Grid>
             </Border>
         </Grid>
+
+        <Border
+            x:Name="LyricsPanel"
+            Grid.Row="3"
+            Height="280"
+            Margin="0,12,0,0"
+            Padding="10,8"
+            CornerRadius="8"
+            BorderThickness="1"
+            Visibility="Collapsed">
+            <Grid RowSpacing="6">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid>
+                    <TextBlock x:Name="LyricsHeading" Text="歌詞" FontSize="12" FontWeight="SemiBold" />
+                    <TextBlock x:Name="LyricsMode" FontSize="11" HorizontalAlignment="Right" />
+                </Grid>
+                <Grid Grid.Row="1">
+                    <ScrollViewer
+                        x:Name="LyricsScroller"
+                        VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Disabled"
+                        HorizontalScrollMode="Disabled"
+                        Visibility="Collapsed">
+                        <StackPanel x:Name="LyricsLines" Spacing="4" Padding="0,30" />
+                    </ScrollViewer>
+                    <StackPanel x:Name="LyricsMessagePanel" Spacing="10" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="320">
+                        <ProgressRing x:Name="LyricsLoading" Width="24" Height="24" IsActive="False" Visibility="Collapsed" />
+                        <TextBlock x:Name="LyricsMessage" Text="再生中の曲がありません" FontSize="13" TextWrapping="Wrap" TextAlignment="Center" />
+                        <Button x:Name="LyricsRetry" Content="再取得" Style="{StaticResource GhostButton}" Padding="12,5"
+                            HorizontalAlignment="Center" Visibility="Collapsed" Click="OnLyricsRetryClick" />
+                    </StackPanel>
+                </Grid>
+                <HyperlinkButton x:Name="LyricsCredit" Grid.Row="2" Content="Lyrics · LRCLIB" NavigateUri="https://lrclib.net/"
+                    HorizontalAlignment="Right" Padding="0" MinHeight="18" FontSize="10" />
+            </Grid>
+        </Border>
     </Grid>
 </Window>

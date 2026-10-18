@@ -132,7 +132,7 @@ public sealed partial class MainWindow
         VolumeText.Foreground = secondaryBrush;
         VolumeIcon.Foreground = secondaryBrush;
         ArtPlaceholder.Foreground = secondaryBrush;
-        foreach (var button in new[] { PreviousButton, PlayPauseButton, NextButton, MinimizeButton, CloseButton }
+        foreach (var button in new[] { PreviousButton, PlayPauseButton, NextButton, MinimizeButton, CloseButton, LyricsButton, PinButton }
             .Concat(SessionSwitchPanel.Children.OfType<Button>()))
         {
             button.Foreground = foregroundBrush;
@@ -151,6 +151,7 @@ public sealed partial class MainWindow
         VolumeThumb.Fill = accentBrush;
         TimelineThumb.Stroke = foregroundBrush;
         VolumeThumb.Stroke = foregroundBrush;
+        ApplyLyricsColors(foreground, secondary, accent, onAccent, hover);
         HighlightSessionSwitchButtons();
     }
 

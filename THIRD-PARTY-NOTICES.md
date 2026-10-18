@@ -38,3 +38,9 @@ The `licenses/` directory contains unmodified license and notice files from the 
 | System.Security.Principal.Windows | 4.7.0 | © Microsoft Corporation. All rights reserved. | MIT | [LICENSE.TXT](licenses/Microsoft.NET.ILLink.Tasks/8.0.32/LICENSE.TXT), [THIRD-PARTY-NOTICES.TXT](licenses/Microsoft.NETCore.Platforms/3.1.0/THIRD-PARTY-NOTICES.TXT) |
 
 The self-contained executable also includes the .NET and Windows App SDK runtimes and their notices. Preserve the applicable upstream license and notice texts when distributing binaries. No third-party package binaries are checked into this repository.
+
+## LRCLIB lyrics service
+
+Lyrics are retrieved from [LRCLIB](https://lrclib.net/) through its [public API](https://lrclib.net/docs). The application credits LRCLIB in the lyrics panel. No LRCLIB server code is bundled with this application.
+
+The [LRCLIB server project](https://github.com/tranxuanthang/lrclib) is copyright (c) 2024 tranxuanthang and licensed under the MIT License; the upstream text is preserved in [licenses/LRCLIB/LICENSE](licenses/LRCLIB/LICENSE). This software license does not license the lyrics returned by the service; rights to lyrics remain with their respective holders.

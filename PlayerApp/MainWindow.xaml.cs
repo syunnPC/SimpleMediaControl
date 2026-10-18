@@ -47,6 +47,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         ConfigureWindow();
         InitializePaletteRenderer();
+        InitializeLyrics();
         ShowEmpty();
         ResetMarquee();
         StartTimelineTimer();
@@ -239,6 +240,7 @@ public sealed partial class MainWindow : Window
     {
         _closed = true;
         _mediaGeneration++;
+        DisposeLyrics();
         DisposePaletteRenderer();
         _timelineTimer?.Stop();
         if (_timelineTimer is not null)
@@ -321,6 +323,7 @@ public sealed partial class MainWindow : Window
         }
         DetachSession();
         _session = session;
+        RefreshLyricsTrack();
         _selectedAumid = session.SourceAppUserModelId;
         _currentSessionId = session.Id;
         _mediaGeneration++;
@@ -412,6 +415,8 @@ public sealed partial class MainWindow : Window
         PreviousButton.IsEnabled = false;
         PlayPauseButton.IsEnabled = false;
         NextButton.IsEnabled = false;
+        RefreshLyricsTrack();
+        ShowLyricsMessage("再生中の曲がありません", false, false);
     }
 
     private async Task RefreshMediaAsync()
@@ -426,6 +431,7 @@ public sealed partial class MainWindow : Window
         try
         {
             var props = session.Media;
+            RefreshLyricsTrack();
             if (generation != _mediaGeneration)
             {
                 return;
@@ -610,6 +616,7 @@ public sealed partial class MainWindow : Window
             NextButton.IsEnabled = controls.IsNextEnabled;
             _timelineSeekEnabled = controls.IsPlaybackPositionEnabled;
             TimelineBar.Opacity = _timelineSeekEnabled ? 1.0 : 0.4;
+            UpdateLyricsSeekAvailability();
         }
         catch
         {
@@ -626,6 +633,7 @@ public sealed partial class MainWindow : Window
         NextButton.IsEnabled = enabled;
         _timelineSeekEnabled = enabled;
         TimelineBar.Opacity = enabled ? 1.0 : 0.4;
+        UpdateLyricsSeekAvailability();
     }
 
     private void OnTimelineTick(DispatcherQueueTimer sender, object args)
@@ -653,7 +661,9 @@ public sealed partial class MainWindow : Window
         {
             _playbackTimeline.SetTimeline(timeline.Position, timeline.EndTime, timeline.LastUpdatedTime);
         }
+        RefreshLyricsTrack();
         UpdateTimelineDisplay();
+        UpdateLyricsSeekAvailability();
     }
 
     private void UpdateTimelineDisplay()
@@ -680,6 +690,7 @@ public sealed partial class MainWindow : Window
         }
         PositionText.Text = FormatTime(elapsed);
         DurationText.Text = $"-{FormatTime(_playbackTimeline.EndTime - elapsed)}";
+        UpdateLyricsPosition();
     }
 
     private void UpdateTimelineBar()

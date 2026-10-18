@@ -21,6 +21,21 @@ public sealed partial class MainWindow
 
     private nint _mainHwnd;
     private int _frameClearCounter;
+    private bool _isPinned;
+
+    [SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "Click handler referenced by MainWindow.xaml.")]
+    private void OnPinClick(object sender, RoutedEventArgs e)
+    {
+        if (AppWindow.Presenter is OverlappedPresenter presenter)
+        {
+            presenter.IsAlwaysOnTop = !presenter.IsAlwaysOnTop;
+            _isPinned = presenter.IsAlwaysOnTop;
+            var label = _isPinned ? "最前面の固定を解除" : "最前面に固定";
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(PinButton, label);
+            Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(PinButton, label);
+            UpdateAuxiliaryButtonColors();
+        }
+    }
 
     private void ConfigureWindow()
     {
@@ -103,6 +118,7 @@ public sealed partial class MainWindow
     private void OnAppWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
     {
         UpdatePaletteAnimationState();
+        UpdateLyricsTimerState();
         if (args.DidSizeChange || args.DidPositionChange)
         {
             OnUi(UpdateNonClientRegions);
