@@ -7,8 +7,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 using NAudio.CoreAudioApi;
-using Windows.Media.Control;
-using Windows.Storage.Streams;
 
 namespace PlayerApp;
 
@@ -16,7 +14,7 @@ public sealed partial class MainWindow
 {
     private readonly Dictionary<string, BitmapImage?> _iconCache = new(StringComparer.Ordinal);
 
-    private async Task UpdateAlbumArtAsync(IRandomAccessStreamReference? thumbnail, int generation)
+    private async Task UpdateAlbumArtAsync(byte[]? thumbnail, int generation)
     {
         var analysis = await AnalyzeArtAsync(thumbnail, generation);
         if (generation != _mediaGeneration)
@@ -40,7 +38,7 @@ public sealed partial class MainWindow
 
     private sealed record ArtAnalysis(BitmapImage Image, AlbumPalette Palette);
 
-    private async Task<ArtAnalysis?> AnalyzeArtAsync(IRandomAccessStreamReference? thumbnail, int generation)
+    private async Task<ArtAnalysis?> AnalyzeArtAsync(byte[]? thumbnail, int generation)
     {
         try
         {
@@ -48,7 +46,8 @@ public sealed partial class MainWindow
             {
                 return null;
             }
-            using var stream = await thumbnail.OpenReadAsync();
+            using var source = new System.IO.MemoryStream(thumbnail, writable: false);
+            using var stream = System.IO.WindowsRuntimeStreamExtensions.AsRandomAccessStream(source);
             if (generation != _mediaGeneration)
             {
                 return null;
@@ -157,11 +156,25 @@ public sealed partial class MainWindow
     {
         try
         {
+            var rowBytes = checked(width * 4);
+            if (width <= 0 || height <= 0 || bgraBytes.Length != checked(rowBytes * height))
+            {
+                return null;
+            }
             using var drawingBitmap = new System.Drawing.Bitmap(width, height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             var rectangle = new System.Drawing.Rectangle(0, 0, width, height);
             var bits = drawingBitmap.LockBits(rectangle, System.Drawing.Imaging.ImageLockMode.WriteOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-            System.Runtime.InteropServices.Marshal.Copy(bgraBytes, 0, bits.Scan0, bgraBytes.Length);
-            drawingBitmap.UnlockBits(bits);
+            try
+            {
+                for (var row = 0; row < height; row++)
+                {
+                    Marshal.Copy(bgraBytes, row * rowBytes, bits.Scan0 + row * bits.Stride, rowBytes);
+                }
+            }
+            finally
+            {
+                drawingBitmap.UnlockBits(bits);
+            }
             using var memory = new System.IO.MemoryStream();
             drawingBitmap.Save(memory, System.Drawing.Imaging.ImageFormat.Png);
             return memory.ToArray();
@@ -218,7 +231,7 @@ public sealed partial class MainWindow
         }
     }
 
-    private async Task FillSessionButtonIconAsync(Button button, GlobalSystemMediaTransportControlsSession session)
+    private async Task FillSessionButtonIconAsync(Button button, MediaSession session)
     {
         var aumid = session.SourceAppUserModelId;
         if (string.IsNullOrEmpty(aumid))
@@ -360,24 +373,18 @@ public sealed partial class MainWindow
                 Bv5CSType = 0x57696E20,
                 Bv5Intent = 4
             };
-            var buffer = new byte[width * 4 * height];
+            var buffer = new byte[checked(width * 4 * height)];
             var hdc = GetDC(0);
+            if (hdc == 0)
+            {
+                return null;
+            }
             try
             {
-                var headerSize = System.Runtime.InteropServices.Marshal.SizeOf<BitmapV5Header>();
-                var headerPointer = System.Runtime.InteropServices.Marshal.AllocHGlobal(headerSize);
-                try
+                var rows = GetDIBits(hdc, hbitmap, 0, (uint)height, buffer, ref v5, 0);
+                if (rows != height)
                 {
-                    System.Runtime.InteropServices.Marshal.StructureToPtr(v5, headerPointer, false);
-                    var gpuHandle = GetDIBits(hdc, hbitmap, 0, (uint)height, buffer, headerPointer, 0);
-                    if (gpuHandle != height)
-                    {
-                        return null;
-                    }
-                }
-                finally
-                {
-                    System.Runtime.InteropServices.Marshal.FreeHGlobal(headerPointer);
+                    return null;
                 }
             }
             finally
@@ -439,9 +446,16 @@ public sealed partial class MainWindow
         public uint Bv5BlueMask;
         public uint Bv5AlphaMask;
         public uint Bv5CSType;
-        public long Bv5EndpointsR;
-        public long Bv5EndpointsG;
-        public long Bv5EndpointsB;
+        // CIEXYZTRIPLE contains nine 32-bit FXPT2DOT30 coordinates (36 bytes).
+        public int Bv5EndpointsRX;
+        public int Bv5EndpointsRY;
+        public int Bv5EndpointsRZ;
+        public int Bv5EndpointsGX;
+        public int Bv5EndpointsGY;
+        public int Bv5EndpointsGZ;
+        public int Bv5EndpointsBX;
+        public int Bv5EndpointsBY;
+        public int Bv5EndpointsBZ;
         public uint Bv5GammaR;
         public uint Bv5GammaG;
         public uint Bv5GammaB;
@@ -458,7 +472,7 @@ public sealed partial class MainWindow
     private static extern int GetObjectW(nint hObject, int size, ref Bitmap bitmap);
 
     [DllImport("gdi32.dll")]
-    private static extern int GetDIBits(nint hdc, nint hbitmap, uint startScan, uint scanLines, byte[] bits, nint info, uint usage);
+    private static extern int GetDIBits(nint hdc, nint hbitmap, uint startScan, uint scanLines, [Out] byte[] bits, ref BitmapV5Header info, uint usage);
 
     [DllImport("gdi32.dll")]
     private static extern bool DeleteObject(nint hObject);

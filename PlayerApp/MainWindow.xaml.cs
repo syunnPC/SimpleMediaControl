@@ -9,7 +9,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using Windows.Media.Control;
 
 namespace PlayerApp;
 
@@ -18,15 +17,16 @@ public sealed partial class MainWindow : Window
     private const string PlayGlyph = "\uE768";
     private const string PauseGlyph = "\uE769";
 
-    private GlobalSystemMediaTransportControlsSessionManager? _manager;
-    private GlobalSystemMediaTransportControlsSession? _session;
+    private MediaClient? _mediaClient;
+    private MediaSession? _session;
     private DispatcherQueueTimer? _timelineTimer;
     private string? _selectedAumid;
     private bool _seeking;
     private DateTimeOffset _seekingAt;
-    private IntPtr _currentSessionPtr;
+    private Guid _currentSessionId;
     private int _mediaGeneration;
     private bool _closed;
+    private readonly PlaybackTimeline _playbackTimeline = new();
 
     private bool _timelineSeekEnabled;
     private double _timelineValue;
@@ -68,7 +68,7 @@ public sealed partial class MainWindow : Window
         ArtistText.SizeChanged += (sender, args) => OnUi(UpdateMarquees);
         SessionSwitchPanel.SizeChanged += (sender, args) => OnUi(UpdateSessionFades);
         Closed += (window, args) => OnWindowClosed();
-        _ = InitializeGsmtcAsync();
+        InitializeMediaClient();
     }
 
     private void StartTimelineTimer()
@@ -200,19 +200,14 @@ public sealed partial class MainWindow : Window
         _sessionPanActive = false;
     }
 
-    private async Task InitializeGsmtcAsync()
+    private void InitializeMediaClient()
     {
         try
         {
-            var manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-            if (_closed)
-            {
-                return;
-            }
-
-            _manager = manager;
-            _manager.SessionsChanged += OnManagerSessionsChanged;
-            OnUi(RefreshSessions);
+            _mediaClient = new MediaClient(Environment.ProcessPath ?? throw new InvalidOperationException("Executable path is unavailable."), OnUi, MediaLog.Write);
+            _mediaClient.SessionsChanged += OnMediaSessionsChanged;
+            _mediaClient.ConnectionChanged += OnMediaConnectionChanged;
+            _mediaClient.Start();
         }
         catch (Exception ex)
         {
@@ -254,55 +249,53 @@ public sealed partial class MainWindow : Window
         _titleMarqueeStoryboard?.Stop();
         _artistMarqueeStoryboard?.Stop();
         AppWindow.Changed -= OnAppWindowChanged;
-        if (_manager != null)
+        if (_mediaClient != null)
         {
-            _manager.SessionsChanged -= OnManagerSessionsChanged;
+            _mediaClient.SessionsChanged -= OnMediaSessionsChanged;
+            _mediaClient.ConnectionChanged -= OnMediaConnectionChanged;
+            _mediaClient.Dispose();
         }
         DetachSession();
     }
 
-    private void OnManagerSessionsChanged(GlobalSystemMediaTransportControlsSessionManager sender, object args)
+    private void OnMediaSessionsChanged(MediaClient sender, object args)
     {
         OnUi(RefreshSessions);
     }
 
+    private void OnMediaConnectionChanged(MediaClient sender, object args)
+    {
+        if (sender.IsConnected)
+        {
+            RefreshSessions();
+        }
+        else
+        {
+            SetTransportEnabled(false);
+            ArtistText.Text = "メディア情報を再接続しています…";
+            UpdateTimelineDisplay();
+        }
+    }
+
     private void RefreshSessions()
     {
-        if (_manager is null)
+        if (_mediaClient is null)
         {
             return;
         }
 
-        List<GlobalSystemMediaTransportControlsSession> sessions;
-        try
-        {
-            sessions = [.. _manager.GetSessions()];
-        }
-        catch
-        {
-            sessions = [];
-        }
+        var sessions = _mediaClient.GetSessions();
 
-        GlobalSystemMediaTransportControlsSession? current = null;
-        if (_currentSessionPtr != IntPtr.Zero)
+        MediaSession? current = null;
+        if (_currentSessionId != Guid.Empty)
         {
-            current = sessions.FirstOrDefault(s => IsSameSession(s, _currentSessionPtr));
+            current = sessions.FirstOrDefault(s => IsSameSession(s, _currentSessionId));
         }
         if (current is null && _selectedAumid is not null)
         {
             current = sessions.FirstOrDefault(s => s.SourceAppUserModelId == _selectedAumid);
         }
-        current ??= sessions.FirstOrDefault(s =>
-            {
-                try
-                {
-                    return s.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
-                }
-                catch
-                {
-                    return false;
-                }
-            });
+        current ??= sessions.FirstOrDefault(s => s.Playback.PlaybackStatus == SessionPlaybackState.Playing);
         current ??= sessions.FirstOrDefault();
 
         UpdateSessionSwitchPanel(sessions);
@@ -310,36 +303,39 @@ public sealed partial class MainWindow : Window
         AttachSession(current);
     }
 
-    private void AttachSession(GlobalSystemMediaTransportControlsSession? session)
+    private void AttachSession(MediaSession? session)
     {
+        if (session is null)
+        {
+            DetachSession();
+            ShowEmpty();
+            return;
+        }
         if (_session == session)
         {
-            _selectedAumid = session?.SourceAppUserModelId;
-            _currentSessionPtr = session is null ? IntPtr.Zero : GetSessionIdentity(session);
+            _selectedAumid = session.SourceAppUserModelId;
+            _currentSessionId = session.Id;
             RefreshPlaybackInfo();
             HighlightSessionSwitchButtons();
             return;
         }
         DetachSession();
-        if (session is null)
-        {
-            ShowEmpty();
-            return;
-        }
         _session = session;
         _selectedAumid = session.SourceAppUserModelId;
-        _currentSessionPtr = GetSessionIdentity(session);
+        _currentSessionId = session.Id;
         _mediaGeneration++;
         session.MediaPropertiesChanged += OnSessionMediaPropertiesChanged;
         session.PlaybackInfoChanged += OnSessionPlaybackInfoChanged;
         session.TimelinePropertiesChanged += OnSessionTimelinePropertiesChanged;
         _ = RefreshMediaAsync();
         RefreshPlaybackInfo();
+        RefreshTimeline();
         HighlightSessionSwitchButtons();
     }
 
     private void DetachSession()
     {
+        _playbackTimeline.Clear();
         if (_session is null)
         {
             return;
@@ -348,61 +344,53 @@ public sealed partial class MainWindow : Window
         _session.PlaybackInfoChanged -= OnSessionPlaybackInfoChanged;
         _session.TimelinePropertiesChanged -= OnSessionTimelinePropertiesChanged;
         _session = null;
-        _currentSessionPtr = IntPtr.Zero;
+        _currentSessionId = Guid.Empty;
         _mediaGeneration++;
         _appVolume = null;
     }
 
-    private static IntPtr GetSessionIdentity(GlobalSystemMediaTransportControlsSession session)
+    private static bool IsSameSession(MediaSession? session, MediaSession? other)
     {
-        try
-        {
-            return ((WinRT.IWinRTObject)session).NativeObject.ThisPtr;
-        }
-        catch
-        {
-            return IntPtr.Zero;
-        }
+        return session is not null && other is not null && session.Id == other.Id;
     }
 
-    private static bool IsSameSession(GlobalSystemMediaTransportControlsSession? session, GlobalSystemMediaTransportControlsSession? other)
+    private static bool IsSameSession(MediaSession? session, Guid identity)
     {
-        if (ReferenceEquals(session, other))
+        return session is not null && session.Id == identity;
+    }
+
+    private void OnSessionMediaPropertiesChanged(MediaSession sender, object args)
+    {
+        OnUi(() =>
         {
-            return true;
-        }
-        if (session is null || other is null)
+            if (IsSameSession(sender, _session))
+            {
+                _ = RefreshMediaAsync();
+            }
+        });
+    }
+
+    private void OnSessionPlaybackInfoChanged(MediaSession sender, object args)
+    {
+        OnUi(() =>
         {
-            return false;
-        }
-        var thisPtr = GetSessionIdentity(session);
-        var otherPtr = GetSessionIdentity(other);
-        return thisPtr != IntPtr.Zero && otherPtr != IntPtr.Zero && thisPtr == otherPtr;
+            if (IsSameSession(sender, _session))
+            {
+                RefreshPlaybackInfo();
+                UpdateTimelineDisplay();
+            }
+        });
     }
 
-    private static bool IsSameSession(GlobalSystemMediaTransportControlsSession? session, IntPtr identity)
+    private void OnSessionTimelinePropertiesChanged(MediaSession sender, object args)
     {
-        if (session is null || identity == IntPtr.Zero)
+        OnUi(() =>
         {
-            return false;
-        }
-        var thisPtr = GetSessionIdentity(session);
-        return thisPtr != IntPtr.Zero && thisPtr == identity;
-    }
-
-    private void OnSessionMediaPropertiesChanged(GlobalSystemMediaTransportControlsSession sender, object args)
-    {
-        OnUi(() => _ = RefreshMediaAsync());
-    }
-
-    private void OnSessionPlaybackInfoChanged(GlobalSystemMediaTransportControlsSession sender, object args)
-    {
-        OnUi(RefreshPlaybackInfo);
-    }
-
-    private void OnSessionTimelinePropertiesChanged(GlobalSystemMediaTransportControlsSession sender, object args)
-    {
-        OnUi(UpdateTimelineDisplay);
+            if (IsSameSession(sender, _session))
+            {
+                RefreshTimeline();
+            }
+        });
     }
 
     private void ShowEmpty()
@@ -437,7 +425,7 @@ public sealed partial class MainWindow : Window
         }
         try
         {
-            var props = await session.TryGetMediaPropertiesAsync();
+            var props = session.Media;
             if (generation != _mediaGeneration)
             {
                 return;
@@ -458,7 +446,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void UpdateSessionSwitchPanel(IReadOnlyList<GlobalSystemMediaTransportControlsSession> sessions)
+    private void UpdateSessionSwitchPanel(IReadOnlyList<MediaSession> sessions)
     {
         SessionSwitchPanel.Children.Clear();
         if (sessions.Count <= 1)
@@ -534,7 +522,7 @@ public sealed partial class MainWindow : Window
         Button? activeButton = null;
         foreach (var child in SessionSwitchPanel.Children.OfType<Button>())
         {
-            var active = child.Tag is GlobalSystemMediaTransportControlsSession session && IsSameSession(session, _session);
+            var active = child.Tag is MediaSession session && IsSameSession(session, _session);
             if (active)
             {
                 activeButton = child;
@@ -594,7 +582,7 @@ public sealed partial class MainWindow : Window
             _suppressSessionSwitchClick = false;
             return;
         }
-        if (sender is not Button button || button.Tag is not GlobalSystemMediaTransportControlsSession session)
+        if (sender is not Button button || button.Tag is not MediaSession session)
         {
             return;
         }
@@ -605,16 +593,17 @@ public sealed partial class MainWindow : Window
     private void RefreshPlaybackInfo()
     {
         var session = _session;
-        if (session is null)
+        if (session is null || _mediaClient?.IsConnected != true)
         {
             SetTransportEnabled(false);
             return;
         }
         try
         {
-            var info = session.GetPlaybackInfo();
+            var info = session.Playback;
             var controls = info.Controls;
-            var playing = info.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+            var playing = info.PlaybackStatus == SessionPlaybackState.Playing;
+            _playbackTimeline.SetPlayback(playing, info.PlaybackRate, DateTimeOffset.Now);
             PlayPauseIcon.Glyph = playing ? PauseGlyph : PlayGlyph;
             PlayPauseButton.IsEnabled = playing ? controls.IsPauseEnabled : controls.IsPlayEnabled;
             PreviousButton.IsEnabled = controls.IsPreviousEnabled;
@@ -630,6 +619,7 @@ public sealed partial class MainWindow : Window
 
     private void SetTransportEnabled(bool enabled)
     {
+        _playbackTimeline.SetPlayback(false, null, DateTimeOffset.Now);
         PlayPauseIcon.Glyph = PlayGlyph;
         PlayPauseButton.IsEnabled = enabled;
         PreviousButton.IsEnabled = enabled;
@@ -652,65 +642,44 @@ public sealed partial class MainWindow : Window
         UpdateVolumeDisplay();
     }
 
+    private void RefreshTimeline()
+    {
+        var timeline = _session?.Timeline;
+        if (timeline is null)
+        {
+            _playbackTimeline.SetTimeline(TimeSpan.Zero, TimeSpan.Zero, default);
+        }
+        else
+        {
+            _playbackTimeline.SetTimeline(timeline.Position, timeline.EndTime, timeline.LastUpdatedTime);
+        }
+        UpdateTimelineDisplay();
+    }
+
     private void UpdateTimelineDisplay()
     {
         if (_seeking && DateTimeOffset.Now - _seekingAt > TimeSpan.FromSeconds(4))
         {
             _seeking = false;
         }
-        var session = _session;
-        if (session is null)
+        if (!_playbackTimeline.HasTimeline)
         {
+            _timelineMaxSeconds = 0;
+            _timelineValue = 0;
+            UpdateTimelineBar();
             PositionText.Text = "--:--";
             DurationText.Text = "--:--";
             return;
         }
-        try
+        var elapsed = _playbackTimeline.GetPosition(DateTimeOffset.Now);
+        _timelineMaxSeconds = _playbackTimeline.EndTime.TotalSeconds;
+        if (!_seeking)
         {
-            var info = session.GetPlaybackInfo();
-            var timeline = session.GetTimelineProperties();
-            if (timeline.EndTime <= TimeSpan.Zero)
-            {
-                PositionText.Text = "--:--";
-                DurationText.Text = "--:--";
-                return;
-            }
-            var rate = 1.0;
-            if (info.PlaybackRate is double parsed && parsed > 0)
-            {
-                rate = parsed;
-            }
-            var playing = info.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
-            var elapsed = playing
-                ? timeline.Position + TimeSpan.FromMilliseconds(
-                    (DateTimeOffset.Now - timeline.LastUpdatedTime).TotalMilliseconds * rate)
-                : timeline.Position;
-            if (elapsed < TimeSpan.Zero)
-            {
-                elapsed = TimeSpan.Zero;
-            }
-            if (elapsed > timeline.EndTime)
-            {
-                elapsed = timeline.EndTime;
-            }
-            var maxSeconds = timeline.EndTime.TotalSeconds;
-            _timelineMaxSeconds = maxSeconds;
-            if (!_seeking)
-            {
-                _timelineValue = elapsed.TotalSeconds;
-                UpdateTimelineBar();
-            }
-            PositionText.Text = FormatTime(elapsed);
-            var remaining = timeline.EndTime - elapsed;
-            if (remaining < TimeSpan.Zero)
-            {
-                remaining = TimeSpan.Zero;
-            }
-            DurationText.Text = $"-{FormatTime(remaining)}";
+            _timelineValue = elapsed.TotalSeconds;
+            UpdateTimelineBar();
         }
-        catch
-        {
-        }
+        PositionText.Text = FormatTime(elapsed);
+        DurationText.Text = $"-{FormatTime(_playbackTimeline.EndTime - elapsed)}";
     }
 
     private void UpdateTimelineBar()
@@ -758,7 +727,7 @@ public sealed partial class MainWindow : Window
             return;
         }
         UpdateTimelineFromPointer(e);
-        CompleteSeek();
+        _ = CompleteSeekAsync();
         TimelineBar.ReleasePointerCapture(e.Pointer);
     }
 
@@ -768,7 +737,7 @@ public sealed partial class MainWindow : Window
         {
             return;
         }
-        CompleteSeek();
+        _ = CompleteSeekAsync();
     }
 
     private void UpdateTimelineFromPointer(PointerRoutedEventArgs e)
@@ -787,7 +756,7 @@ public sealed partial class MainWindow : Window
         DurationText.Text = $"-{FormatTime(TimeSpan.FromSeconds(remaining))}";
     }
 
-    private void CompleteSeek()
+    private async Task CompleteSeekAsync()
     {
         if (!_seeking)
         {
@@ -801,7 +770,7 @@ public sealed partial class MainWindow : Window
         }
         try
         {
-            _ = session.TryChangePlaybackPositionAsync((long)(_timelineValue * TimeSpan.TicksPerSecond));
+            await session.TryChangePlaybackPositionAsync((long)(_timelineValue * TimeSpan.TicksPerSecond));
         }
         catch
         {
@@ -818,8 +787,8 @@ public sealed partial class MainWindow : Window
         }
         try
         {
-            var status = session.GetPlaybackInfo().PlaybackStatus;
-            if (status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+            var status = session.Playback.PlaybackStatus;
+            if (status == SessionPlaybackState.Playing)
             {
                 await session.TryPauseAsync();
             }
@@ -865,7 +834,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private static string GetSessionDisplayLabel(GlobalSystemMediaTransportControlsSession session)
+    private static string GetSessionDisplayLabel(MediaSession session)
     {
         var source = session.SourceAppUserModelId;
         if (!string.IsNullOrEmpty(source))

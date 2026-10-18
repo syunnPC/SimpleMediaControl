@@ -16,6 +16,7 @@
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <RuntimeIdentifier Condition="'$(Platform)' != 'AnyCPU' AND '$(RuntimeIdentifier)' == ''">win-$(Platform)</RuntimeIdentifier>
     <Nullable>enable</Nullable>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     <!-- Keep developer machine paths out of embedded debugging information. -->
     <PathMap>$(MSBuildProjectDirectory)=/_/PlayerApp,$(NuGetPackageRoot)=/_/packages/</PathMap>
   </PropertyGroup>
