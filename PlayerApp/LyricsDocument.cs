@@ -50,9 +50,9 @@ internal sealed record LyricsGap(TimeSpan Start, TimeSpan End, int Phase);
 
 internal sealed class LyricsDocument(LyricsKind kind, IReadOnlyList<LyricsCue> cues, string plainText)
 {
-    private static readonly Regex Timestamp = new(@"\G\[(\d{1,6}):([0-5]\d)(?:\.(\d{1,3}))?\]",
+    private static readonly Regex Timestamp = new(@"\G\[([0-9]{1,6}):([0-5][0-9])(?:\.([0-9]{1,3}))?\]",
         RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
-    private static readonly Regex WordTimestamp = new(@"<\d{1,6}:[0-5]\d(?:\.\d{1,3})?>",
+    private static readonly Regex WordTimestamp = new(@"<[0-9]{1,6}:[0-5][0-9](?:\.[0-9]{1,3})?>",
         RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
     public LyricsKind Kind { get; } = kind;
     public IReadOnlyList<LyricsCue> Cues { get; } = cues;

@@ -15,7 +15,7 @@ public sealed partial class MainWindow
 {
     private AudioMixerController? _audioMixer;
     private bool _volumeSeeking;
-    private DateTimeOffset _volumeSeekingAt;
+    private uint _volumePointerId;
     private DateTimeOffset _lastVolumeWrite;
     private double _volumePercent = 100;
     private Guid _batteryContainer;
@@ -46,15 +46,18 @@ public sealed partial class MainWindow
 
     private void OnVolumePointerPressed(object sender, PointerRoutedEventArgs e)
     {
+        if (_volumeSeeking || !VolumeBar.CapturePointer(e.Pointer))
+        {
+            return;
+        }
         _volumeSeeking = true;
-        _volumeSeekingAt = DateTimeOffset.Now;
-        VolumeBar.CapturePointer(e.Pointer);
+        _volumePointerId = e.Pointer.PointerId;
         UpdateVolumeFromPointer(e);
     }
 
     private void OnVolumePointerMoved(object sender, PointerRoutedEventArgs e)
     {
-        if (!_volumeSeeking)
+        if (!_volumeSeeking || e.Pointer.PointerId != _volumePointerId)
         {
             return;
         }
@@ -63,13 +66,28 @@ public sealed partial class MainWindow
 
     private void OnVolumePointerReleased(object sender, PointerRoutedEventArgs e)
     {
+        if (!_volumeSeeking || e.Pointer.PointerId != _volumePointerId)
+        {
+            return;
+        }
+        UpdateVolumeFromPointer(e);
         CompleteVolumeSet();
         VolumeBar.ReleasePointerCapture(e.Pointer);
     }
 
     private void OnVolumePointerCaptureLost(object sender, PointerRoutedEventArgs e)
     {
+        if (!_volumeSeeking || e.Pointer.PointerId != _volumePointerId)
+        {
+            return;
+        }
         CompleteVolumeSet();
+    }
+
+    private void CancelVolumeSet()
+    {
+        _volumeSeeking = false;
+        VolumeBar.ReleasePointerCaptures();
     }
 
     private void UpdateVolumeFromPointer(PointerRoutedEventArgs e)
@@ -138,14 +156,10 @@ public sealed partial class MainWindow
         }
         AutomationProperties.SetName(VolumeDeviceButton, UiText.Format(UiText.AudioActionName, action, description));
         ToolTipService.SetToolTip(VolumeBar, scope);
-        if (_volumeSeeking && DateTimeOffset.Now - _volumeSeekingAt > TimeSpan.FromSeconds(4))
-        {
-            _volumeSeeking = false;
-        }
 
         if (!state.Available)
         {
-            _volumeSeeking = false;
+            CancelVolumeSet();
             VolumeText.Text = "--";
             return;
         }

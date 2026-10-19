@@ -85,6 +85,14 @@ Check(LyricsDocument.Parse("[offset:-500]\n[00:01]Delayed", null, false).Cues[0]
 Check(LyricsDocument.Parse("[offset:-500]\n[00:02]Delayed", null, false).Cues[0].HighlightTime == TimeSpan.FromMilliseconds(1500), "LRC offset applied before highlight lead");
 Check(LyricsDocument.Parse("[00:01.00]<00:01.00>Word <00:01.20>timing", null, false).Cues[0].Text == "Word timing", "enhanced timestamps are not displayed");
 Check(LyricsDocument.Parse("[00:60]Bad", "Plain fixture\n\nNext paragraph", false).Kind == LyricsKind.Plain, "plain text without valid time cues");
+foreach (var invalidTimestamp in new[] { "[００:01]", "[00:0１]", "[00:01.２]", "[٠١:01]" })
+{
+    Check(LyricsDocument.Parse(invalidTimestamp + "Invalid", "Plain fixture", false).Kind == LyricsKind.Plain,
+        "Unicode timestamp digits fall back to plain lyrics without throwing");
+    var validAfterInvalid = LyricsDocument.Parse(invalidTimestamp + "Invalid\n[00:02]Valid fixture", null, false);
+    Check(validAfterInvalid.Cues.Count == 1 && validAfterInvalid.Cues[0].Time == TimeSpan.FromSeconds(2)
+        && validAfterInvalid.Cues[0].Text == "Valid fixture", "malformed Unicode timestamp does not discard later valid cues");
+}
 Check(LyricsDocument.Parse(null, null, true).Kind == LyricsKind.Instrumental, "instrumental response");
 Check(LyricsDocument.Parse(null, null, false).Kind == LyricsKind.NotFound, "missing lyrics");
 Check(LyricsDocument.Parse("[offset:bad]\n[00:01]Text", null, false).Cues.Count == 1, "invalid metadata ignored");
@@ -169,6 +177,21 @@ Check(LyricsSearch.Select(searchTrack, [Candidate(title: "Synthetic Sunrize")]) 
 Check(LyricsSearch.Select(searchTrack, [Candidate(artist: "Fixture Artst")]) is not null, "minor artist spelling differences accepted");
 Check(LyricsSearch.Select(new("Ｃａｆé Sunrise", "Fixture Artist", "", 200), [Candidate(title: "Cafe Sunrise")]) is not null, "width and accent normalization");
 Check(LyricsSearch.Select(new("曲名！？", "ｶｼｭ", "", 200), [Candidate(title: "曲名!?", artist: "カシュ")]) is not null, "punctuation and half-width kana equivalence");
+foreach (var (title, differentTitle) in new[] { ("はな", "ばな"), ("ばな", "ぱな"), ("カナ", "ガナ") })
+{
+    var kanaTrack = new LyricsTrack(title, "Fixture Artist", "", null);
+    Check(LyricsSearch.Select(kanaTrack, [Candidate(title: differentTitle)]) is null,
+        "different kana voicing is not an exact title match without a duration");
+    Check(LyricsSearch.Select(kanaTrack with { DurationSeconds = 200 }, [Candidate(title: differentTitle)]) is null,
+        "matching duration does not erase kana title differences");
+}
+Check(LyricsSearch.Select(new("Fixture Song", "はな", "", null), [Candidate(title: "Fixture Song", artist: "ばな")]) is null,
+    "different kana voicing is not an exact artist match without a duration");
+foreach (var (title, equivalentTitle) in new[] { ("ばな", "は\u3099な"), ("ぱな", "は\u309Aな"), ("ｶﾞﾅ", "ガナ"), ("ﾊﾟﾅ", "パナ") })
+{
+    Check(LyricsSearch.Select(new(title, "Fixture Artist", "", null), [Candidate(title: equivalentTitle)]) is not null,
+        "combining and half-width kana voicing remain equivalent");
+}
 Check(LyricsSearch.Select(new("My Telepathy!私の熱い光線", "櫻井優衣", "", 222),
     [Candidate(title: "My Telepathy！私の熱い光線", artist: "櫻井優衣", duration: 223)]) is not null, "user reference punctuation variant");
 Check(LyricsSearch.Select(new("Song（Ｌｉｖｅ）", "Fixture Artist", "", 200), [Candidate(title: "Song (Live)")]) is not null, "version qualifiers normalize width too");

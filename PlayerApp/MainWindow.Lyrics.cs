@@ -158,6 +158,7 @@ public sealed partial class MainWindow
         var request = new CancellationTokenSource();
         _lyricsRequest = request;
         var generation = _lyricsGeneration;
+        _lyricsDocument = null;
         ShowLyricsMessage(UiText.SearchingLyrics, true, false);
         try
         {
