@@ -10,6 +10,8 @@ namespace PlayerApp;
 
 public sealed partial class MainWindow
 {
+    private const int DWMWA_NCRENDERING_POLICY = 2;
+    private const int DWMNCRP_DISABLED = 1;
     private const int DWMWA_BORDER_COLOR = 34;
     private const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
     private const double WindowWidth = 430;
@@ -50,13 +52,14 @@ public sealed partial class MainWindow
         try
         {
             var appWindow = AppWindow;
-            ExtendsContentIntoTitleBar = true;
-            SetTitleBar(DragZone);
             if (appWindow.Presenter is OverlappedPresenter presenter)
             {
                 presenter.IsResizable = false;
                 presenter.IsMaximizable = false;
                 presenter.IsMinimizable = true;
+                // Window.ExtendsContentIntoTitleBar reserves a one-pixel strip above XAML.
+                // Hide the native chrome directly; UpdateNonClientRegions supplies dragging.
+                presenter.SetBorderAndTitleBar(false, false);
             }
             _mainHwnd = Microsoft.UI.Win32Interop.GetWindowFromWindowId(appWindow.Id);
             ClearFrameStyles();
@@ -122,8 +125,8 @@ public sealed partial class MainWindow
     {
         try
         {
-            var disabled = 2;
-            _ = DwmSetWindowAttribute(_mainHwnd, 2, ref disabled, sizeof(int));
+            var disabled = DWMNCRP_DISABLED;
+            _ = DwmSetWindowAttribute(_mainHwnd, DWMWA_NCRENDERING_POLICY, ref disabled, sizeof(int));
             var none = DWMWA_COLOR_NONE;
             _ = DwmSetWindowAttribute(_mainHwnd, DWMWA_BORDER_COLOR, ref none, sizeof(int));
             var rounded = 2;
