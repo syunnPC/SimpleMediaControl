@@ -90,6 +90,9 @@ Check(LyricsDocument.Parse(null, null, false).Kind == LyricsKind.NotFound, "miss
 Check(LyricsDocument.Parse("[offset:bad]\n[00:01]Text", null, false).Cues.Count == 1, "invalid metadata ignored");
 Check(LyricsDocument.Parse("[100:00.01]Long track", null, false).Cues[0].Time == TimeSpan.FromMilliseconds(6000010), "minutes beyond one hour");
 var track = LyricsTrack.Create(new(" 曲 & +? ", " Artist/歌手 ", "", " Album #1 ", null), TimeSpan.FromSeconds(200.2))!;
+Check(track.IsSameSong(track with { DurationSeconds = 203, Album = "Changed album" }), "duration and album updates preserve playing-song identity");
+Check(new LyricsTrack("Title!", "Artist", "", null).IsSameSong(new("ＴＩＴＬＥ！", "ＡＲＴＩＳＴ — Album", "", 240)), "identity ignores case, width, and embedded album");
+Check(!track.IsSameSong(track with { Title = "Next song" }) && !track.IsSameSong(track with { Artist = "Other artist" }) && !track.IsSameSong(null), "real song change invalidates lyrics");
 Check(track.DurationSeconds == 200 && track.Title == "曲 & +?", "metadata normalization and duration");
 var uri = LyricsSearch.BuildUri(track.Title, track.Artist);
 Check(uri.Contains("track_name=%E6%9B%B2%20%26%20%2B%3F") && !uri.Contains("album_name") && uri.Contains("artist_name=Artist%2F"), "title query escaping; album is never a constraint");

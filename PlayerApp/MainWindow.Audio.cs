@@ -1,23 +1,28 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using NAudio.CoreAudioApi;
 
 namespace PlayerApp;
 
 public sealed partial class MainWindow
 {
-    private MMDeviceEnumerator? _deviceEnumerator;
-    private MMDevice? _audioDevice;
-    private AudioSessionManager? _audioSessionManager;
-    private AudioEndpointVolume? _masterVolume;
-    private SimpleAudioVolume? _appVolume;
-    private List<SimpleAudioVolume>? _appSessionControls;
+    private AudioMixerController? _audioMixer;
     private bool _volumeSeeking;
     private DateTimeOffset _volumeSeekingAt;
     private DateTimeOffset _lastVolumeWrite;
     private double _volumePercent = 100;
+    private Guid _batteryContainer;
+    private DateTimeOffset _lastBatteryRead;
+    private bool _batteryReading;
+    private int? _deviceBattery;
+    private int _batteryGeneration;
 
     private void HookVolumePointerEvents()
     {
@@ -31,17 +36,11 @@ public sealed partial class MainWindow
     {
         try
         {
-            _deviceEnumerator = new MMDeviceEnumerator();
-            _audioDevice = _deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-            _masterVolume = _audioDevice.AudioEndpointVolume;
-            _audioSessionManager = _audioDevice.AudioSessionManager;
+            _audioMixer = new AudioMixerController();
         }
-        catch
+        catch (COMException ex)
         {
-            _deviceEnumerator = null;
-            _audioDevice = null;
-            _masterVolume = null;
-            _audioSessionManager = null;
+            Debug.WriteLine(ex);
         }
     }
 
@@ -80,7 +79,7 @@ public sealed partial class MainWindow
         var ratio = (x - 4) / trackWidth;
         _volumePercent = ratio * 100.0;
         UpdateVolumeBar();
-        VolumeText.Text = $"{Math.Round(_volumePercent)}%";
+        VolumeText.Text = UiText.Format(UiText.VolumePercent, _volumePercent);
         var now = DateTimeOffset.Now;
         if ((now - _lastVolumeWrite).TotalMilliseconds >= 80)
         {
@@ -99,86 +98,100 @@ public sealed partial class MainWindow
         ApplyVolume(_volumePercent);
     }
 
-    private void ApplyVolume(double raw)
+    private void ApplyVolume(double raw) => _audioMixer?.SetVolume(_session?.SourceAppUserModelId, raw);
+
+    [SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "Click handler referenced by MainWindow.xaml.")]
+    private void OnVolumeDeviceClick(object sender, RoutedEventArgs e)
     {
-        var value = (float)Math.Clamp(raw, 0, 100) / 100f;
-        var appVolumes = _appSessionControls;
-        try
-        {
-            if (appVolumes is not null && appVolumes.Count > 0)
-            {
-                foreach (var volume in appVolumes)
-                {
-                    volume.Volume = value;
-                }
-            }
-            else if (_masterVolume is not null)
-            {
-                _masterVolume.MasterVolumeLevelScalar = value;
-            }
-        }
-        catch
-        {
-        }
+        _audioMixer?.ToggleMute(_session?.SourceAppUserModelId);
+        UpdateVolumeDisplay(true);
     }
 
     private void UpdateVolumeDisplay(bool force = false)
     {
+        var state = _audioMixer?.Read(_session?.SourceAppUserModelId, force)
+            ?? new AudioMixerState(false, 0, false, []);
+        VolumeBar.IsHitTestVisible = state.Available;
+        VolumeDeviceButton.IsEnabled = state.Available;
+        VolumeBar.Opacity = state.Available ? 1 : 0.4;
+        VolumeMuteBadge.Visibility = state.Muted ? Visibility.Visible : Visibility.Collapsed;
+        VolumeIcon.Opacity = state.Muted ? 0.5 : 1;
+        var forms = state.Outputs.Select(o => o.FormFactor).Distinct().ToArray();
+        VolumeIcon.Glyph = AudioDevicePresentation.Glyph(forms.Length == 1 ? forms[0] : 10);
+        UpdateDeviceBattery(state.Outputs);
+        DeviceBatteryText.Text = _deviceBattery is { } battery ? UiText.Format(UiText.VolumePercent, battery) : "";
+        DeviceBatteryText.Visibility = _deviceBattery.HasValue ? Visibility.Visible : Visibility.Collapsed;
+        var scope = _session is null ? UiText.SystemVolume : UiText.AppVolume;
+        var action = state.Muted ? UiText.Unmute : UiText.Mute;
+        var description = state.Available
+            ? string.Join("\n", state.Outputs.Select(o => o.Name).Distinct())
+            : UiText.AudioSessionUnavailable;
+        if (_deviceBattery is { } percent)
+        {
+            description += "\n" + UiText.Format(UiText.BatteryDescription, percent);
+        }
+
+        // Retain the tooltip instance across timer ticks so hover opening is not reset.
+        if (!string.Equals(VolumeDeviceToolTip.Content as string, description, StringComparison.Ordinal))
+        {
+            VolumeDeviceToolTip.Content = description;
+        }
+        AutomationProperties.SetName(VolumeDeviceButton, UiText.Format(UiText.AudioActionName, action, description));
+        ToolTipService.SetToolTip(VolumeBar, scope);
         if (_volumeSeeking && DateTimeOffset.Now - _volumeSeekingAt > TimeSpan.FromSeconds(4))
         {
             _volumeSeeking = false;
+        }
+
+        if (!state.Available)
+        {
+            _volumeSeeking = false;
+            VolumeText.Text = "--";
+            return;
         }
         if (_volumeSeeking && !force)
         {
             return;
         }
 
-        var target = _appVolume;
-        if (target is null)
+        _volumePercent = Math.Clamp(state.Percent, 0, 100);
+        UpdateVolumeBar();
+        VolumeText.Text = UiText.Format(UiText.VolumePercent, _volumePercent);
+    }
+
+    private void UpdateDeviceBattery(AudioOutput[] outputs)
+    {
+        var containers = outputs.Select(o => o.ContainerId).Distinct().ToArray();
+        var container = containers.Length == 1 && AudioDeviceBattery.IsPeripheral(containers[0]) ? containers[0] : Guid.Empty;
+        if (container != _batteryContainer)
         {
-            RebindAppVolume();
-            target = _appVolume;
+            _batteryContainer = container;
+            _deviceBattery = null;
+            _batteryGeneration++;
+            _batteryReading = false;
+            _lastBatteryRead = default;
+        }
+        if (container == Guid.Empty || _batteryReading || DateTimeOffset.UtcNow - _lastBatteryRead < TimeSpan.FromSeconds(30))
+        {
+            return;
         }
 
-        double? percent = null;
-        if (target is not null)
+        _batteryReading = true;
+        _lastBatteryRead = DateTimeOffset.UtcNow;
+        _ = ReadDeviceBatteryAsync(container, _batteryGeneration);
+    }
+
+    private async Task ReadDeviceBatteryAsync(Guid container, int generation)
+    {
+        var percent = await Task.Run(() => AudioDeviceBattery.ReadPercentage(container));
+        if (_closed || generation != _batteryGeneration)
         {
-            try
-            {
-                percent = target.Volume * 100.0;
-            }
-            catch
-            {
-                _appVolume = null;
-                percent = null;
-            }
+            return;
         }
 
-        if (percent is null && _masterVolume is not null)
-        {
-            try
-            {
-                percent = _masterVolume.MasterVolumeLevelScalar * 100.0;
-            }
-            catch
-            {
-                percent = null;
-            }
-        }
-
-        if (percent is double p)
-        {
-            var clamped = Math.Clamp(p, 0, 100);
-            _volumePercent = clamped;
-            VolumeBar.Opacity = 1.0;
-            UpdateVolumeBar();
-            VolumeText.Text = $"{Math.Round(clamped)}%";
-        }
-        else
-        {
-            VolumeBar.Opacity = 0.4;
-            VolumeText.Text = "--";
-        }
+        _batteryReading = false;
+        _deviceBattery = percent;
+        UpdateVolumeDisplay();
     }
 
     private void UpdateVolumeBar()
@@ -187,183 +200,6 @@ public sealed partial class MainWindow
         var ratio = Math.Clamp(_volumePercent, 0, 100) / 100.0;
         VolumeFill.Width = ratio * trackWidth;
         VolumeThumbTransform.X = ratio * trackWidth;
-    }
-
-    private void RebindAppVolume()
-    {
-        _appVolume = null;
-        _appSessionControls?.Clear();
-        var target = _session;
-        var manager = _audioSessionManager;
-        if (target is null || manager is null)
-        {
-            return;
-        }
-        var aumid = target.SourceAppUserModelId;
-        if (string.IsNullOrEmpty(aumid))
-        {
-            return;
-        }
-        var candidates = BuildProcessNameCandidates(aumid);
-        var packageTokens = BuildPackagePathTokens(aumid);
-        SessionCollection sessions;
-        try
-        {
-            sessions = manager.Sessions;
-        }
-        catch
-        {
-            return;
-        }
-        for (var i = 0; i < sessions.Count; i++)
-        {
-            AudioSessionControl audioSession;
-            try
-            {
-                audioSession = sessions[i];
-                if (audioSession.IsSystemSoundsSession)
-                {
-                    continue;
-                }
-
-                var procName = "";
-                var pid = (int)audioSession.GetProcessID;
-                if (pid > 0)
-                {
-                    try
-                    {
-                        procName = Process.GetProcessById(pid).ProcessName?.ToLowerInvariant() ?? "";
-                    }
-                    catch
-                    {
-                        procName = "";
-                    }
-                }
-
-                var pathMatch = false;
-                var identifier = audioSession.GetSessionIdentifier ?? "";
-                var bar = identifier.IndexOf('|');
-                if (bar >= 0)
-                {
-                    var next = identifier.IndexOf('%', bar + 1);
-                    var path = (next > bar ? identifier[(bar + 1)..next] : identifier[(bar + 1)..]).ToLowerInvariant();
-                    if (packageTokens is not null && IsPathInPackage(path, packageTokens))
-                    {
-                        pathMatch = true;
-                    }
-                    if (!pathMatch)
-                    {
-                        var slash = path.LastIndexOf('\\');
-                        var fileName = slash >= 0 ? path[(slash + 1)..] : path;
-                        var dot = fileName.LastIndexOf('.');
-                        var stem = dot > 0 ? fileName[..dot] : fileName;
-                        if (stem.Length > 0 && candidates.Contains(stem))
-                        {
-                            pathMatch = true;
-                        }
-                    }
-                }
-
-                var procMatch = procName.Length > 0 && candidates.Contains(procName);
-                if (procMatch || pathMatch)
-                {
-                    var volume = audioSession.SimpleAudioVolume;
-                    _appVolume ??= volume;
-                    _appSessionControls ??= [];
-                    _appSessionControls.Add(volume);
-                }
-            }
-            catch
-            {
-                continue;
-            }
-        }
-    }
-
-    private static List<string>? BuildPackagePathTokens(string aumid)
-    {
-        var bang = aumid.IndexOf('!');
-        if (bang <= 0)
-        {
-            return null;
-        }
-        var family = aumid[..bang];
-        var tokens = new List<string>();
-        try
-        {
-            var packages = new Windows.Management.Deployment.PackageManager();
-            var package = packages.FindPackageForUser(string.Empty, family);
-            var fullName = package?.Id?.FullName;
-            if (!string.IsNullOrWhiteSpace(fullName))
-            {
-                tokens.Add(fullName.ToLowerInvariant() + "\\");
-            }
-        }
-        catch
-        {
-        }
-
-        if (tokens.Count == 0)
-        {
-            var underscore = family.LastIndexOf('_');
-            if (underscore > 0)
-            {
-                tokens.Add(family[..underscore].ToLowerInvariant() + "_");
-            }
-        }
-        return tokens.Count > 0 ? tokens : null;
-    }
-
-    private static bool IsPathInPackage(string path, List<string> tokens)
-    {
-        foreach (var token in tokens)
-        {
-            if (path.Contains(token, StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static HashSet<string> BuildProcessNameCandidates(string aumid)
-    {
-        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        void Add(string? value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return;
-            }
-            var v = value.Trim().ToLowerInvariant();
-            if (v.Length > 0)
-            {
-                set.Add(v);
-            }
-        }
-        var bang = aumid.IndexOf('!');
-        var pfn = bang > 0 ? aumid[..bang] : aumid;
-        if (bang > 0)
-        {
-            Add(aumid[(bang + 1)..]);
-        }
-        var underscore = pfn.LastIndexOf('_');
-        if (underscore > 0)
-        {
-            Add(pfn[..underscore]);
-        }
-        var firstDot = pfn.IndexOf('.');
-        if (firstDot > 0)
-        {
-            Add(pfn[..firstDot]);
-        }
-        var lastDot = pfn.LastIndexOf('.');
-        if (lastDot > 0)
-        {
-            Add(pfn[(lastDot + 1)..]);
-        }
-        Add(pfn);
-        return set;
     }
 
 }

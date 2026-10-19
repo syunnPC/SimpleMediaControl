@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
-using NAudio.CoreAudioApi;
 
 namespace PlayerApp;
 
@@ -590,81 +589,17 @@ public sealed partial class MainWindow
         }
     }
 
-    private string? FindMediaProcessPath(string aumid)
+    private static string? FindMediaProcessPath(string aumid)
     {
-        var manager = _audioSessionManager;
-        if (manager is null)
+        foreach (var process in Process.GetProcesses())
         {
-            return null;
-        }
-        var candidates = BuildProcessNameCandidates(aumid);
-        var packageTokens = BuildPackagePathTokens(aumid);
-        SessionCollection sessions;
-        try
-        {
-            sessions = manager.Sessions;
-        }
-        catch
-        {
-            return null;
-        }
-        for (var i = 0; i < sessions.Count; i++)
-        {
-            AudioSessionControl audioSession;
-            try
+            using (process)
             {
-                audioSession = sessions[i];
-                if (audioSession.IsSystemSoundsSession)
+                var identity = AudioIdentity.Read((uint)process.Id);
+                if (identity.Matches(aumid) && identity.Executable.Length > 0)
                 {
-                    continue;
+                    return identity.Executable;
                 }
-                var procName = "";
-                string? procPath = null;
-                var pid = (int)audioSession.GetProcessID;
-                if (pid > 0)
-                {
-                    try
-                    {
-                        var process = Process.GetProcessById(pid);
-                        procName = process.ProcessName?.ToLowerInvariant() ?? "";
-                        procPath = process.MainModule?.FileName;
-                    }
-                    catch
-                    {
-                    }
-                }
-                var pathMatch = false;
-                var identifier = audioSession.GetSessionIdentifier ?? "";
-                var bar = identifier.IndexOf('|');
-                if (bar >= 0)
-                {
-                    var next = identifier.IndexOf('%', bar + 1);
-                    var path = (next > bar ? identifier[(bar + 1)..next] : identifier[(bar + 1)..]).ToLowerInvariant();
-                    if (packageTokens is not null && IsPathInPackage(path, packageTokens))
-                    {
-                        pathMatch = true;
-                    }
-                    if (!pathMatch)
-                    {
-                        var slash = path.LastIndexOf('\\');
-                        var fileName = slash >= 0 ? path[(slash + 1)..] : path;
-                        var dot = fileName.LastIndexOf('.');
-                        var stem = dot > 0 ? fileName[..dot] : fileName;
-                        if (stem.Length > 0 && candidates.Contains(stem))
-                        {
-                            pathMatch = true;
-                        }
-                    }
-                }
-                var procMatch = procName.Length > 0 && candidates.Contains(procName);
-                if ((procMatch || pathMatch) && !string.IsNullOrEmpty(procPath))
-                {
-                    return procPath;
-                }
-            }
-            catch
-            {
-                continue;
             }
         }
         return null;

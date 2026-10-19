@@ -13,7 +13,7 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <Grid x:Name="RootGrid" Padding="12,10,10,8">
+    <Grid x:Name="RootGrid" Padding="12,10,10,8" Language="{local:Localize Key=LanguageTag}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -64,7 +64,7 @@
                         FontSize="15"
                         FontWeight="SemiBold"
                         VerticalAlignment="Top"
-                        Text="再生中のメディアがありません">
+                        Text="{local:Localize Key=NoMediaPlaying}">
                         <TextBlock.RenderTransform>
                             <TranslateTransform x:Name="TitleMarqueeTransform" X="0" />
                         </TextBlock.RenderTransform>
@@ -83,7 +83,7 @@
                         FontSize="12"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                         VerticalAlignment="Top"
-                        Text="Spotifyなどのアプリで再生すると表示されます">
+                        Text="{local:Localize Key=MediaStartHint}">
                         <TextBlock.RenderTransform>
                             <TranslateTransform x:Name="ArtistMarqueeTransform" X="0" />
                         </TextBlock.RenderTransform>
@@ -112,8 +112,8 @@
                     Width="28"
                     Height="22"
                     Style="{StaticResource GhostButton}"
-                    AutomationProperties.Name="歌詞を表示"
-                    ToolTipService.ToolTip="歌詞を表示"
+                    AutomationProperties.Name="{local:Localize Key=ShowLyrics}"
+                    ToolTipService.ToolTip="{local:Localize Key=ShowLyrics}"
                     Click="OnLyricsClick">
                     <FontIcon FontSize="13" Glyph="&#xE8F2;" />
                 </Button>
@@ -122,8 +122,8 @@
                     Width="28"
                     Height="22"
                     Style="{StaticResource GhostButton}"
-                    AutomationProperties.Name="最前面に固定"
-                    ToolTipService.ToolTip="最前面に固定"
+                    AutomationProperties.Name="{local:Localize Key=PinWindow}"
+                    ToolTipService.ToolTip="{local:Localize Key=PinWindow}"
                     Click="OnPinClick">
                     <FontIcon x:Name="PinIcon" FontSize="12" Glyph="&#xE718;" />
                 </Button>
@@ -132,7 +132,8 @@
                     Width="32"
                     Height="20"
                     Style="{StaticResource GhostButton}"
-                    ToolTipService.ToolTip="最小化"
+                    AutomationProperties.Name="{local:Localize Key=MinimizeWindow}"
+                    ToolTipService.ToolTip="{local:Localize Key=MinimizeWindow}"
                     Click="OnMinimizeClick">
                     <FontIcon FontSize="9" Glyph="&#xE921;" />
                 </Button>
@@ -141,7 +142,8 @@
                     Width="32"
                     Height="20"
                     Style="{StaticResource GhostButton}"
-                    ToolTipService.ToolTip="閉じる"
+                    AutomationProperties.Name="{local:Localize Key=CloseWindow}"
+                    ToolTipService.ToolTip="{local:Localize Key=CloseWindow}"
                     Click="OnCloseClick">
                     <FontIcon FontSize="9" Glyph="&#xE8BB;" />
                 </Button>
@@ -217,11 +219,27 @@
                 Spacing="6"
                 VerticalAlignment="Center"
                 HorizontalAlignment="Left">
-                <FontIcon
-                    x:Name="VolumeIcon"
-                    FontSize="14"
-                    Glyph="&#xE767;"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Button x:Name="VolumeDeviceButton" Width="24" Height="34"
+                        Style="{StaticResource GhostButton}" Padding="0" Click="OnVolumeDeviceClick">
+                    <ToolTipService.ToolTip>
+                        <ToolTip x:Name="VolumeDeviceToolTip" Placement="Top" />
+                    </ToolTipService.ToolTip>
+                    <StackPanel HorizontalAlignment="Center">
+                        <Grid Width="24" Height="20">
+                            <FontIcon x:Name="VolumeIcon" FontSize="14" Glyph="&#xE767;"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Grid x:Name="VolumeMuteBadge" Width="20" Height="20"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  IsHitTestVisible="False" Visibility="Collapsed">
+                                <Ellipse x:Name="VolumeMuteRing" Width="18" Height="18"
+                                         StrokeThickness="1.8" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Line x:Name="VolumeMuteSlash" X1="4" Y1="4" X2="16" Y2="16"
+                                      StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            </Grid>
+                        </Grid>
+                        <TextBlock x:Name="DeviceBatteryText" FontSize="9" HorizontalAlignment="Center" Visibility="Collapsed" />
+                    </StackPanel>
+                </Button>
                 <Grid
                     x:Name="VolumeBar"
                     Width="56"
@@ -272,6 +290,8 @@
                     Width="38"
                     Height="34"
                     Style="{StaticResource GhostButton}"
+                    AutomationProperties.Name="{local:Localize Key=PreviousTrack}"
+                    ToolTipService.ToolTip="{local:Localize Key=PreviousTrack}"
                     Click="OnPreviousClick"
                     IsEnabled="False">
                     <FontIcon FontSize="17" Glyph="&#xE892;" />
@@ -281,6 +301,8 @@
                     Width="46"
                     Height="34"
                     Style="{StaticResource GhostButton}"
+                    AutomationProperties.Name="{local:Localize Key=Play}"
+                    ToolTipService.ToolTip="{local:Localize Key=Play}"
                     Click="OnPlayPauseClick"
                     IsEnabled="False">
                     <FontIcon x:Name="PlayPauseIcon" FontSize="19" Glyph="&#xE768;" />
@@ -290,6 +312,8 @@
                     Width="38"
                     Height="34"
                     Style="{StaticResource GhostButton}"
+                    AutomationProperties.Name="{local:Localize Key=NextTrack}"
+                    ToolTipService.ToolTip="{local:Localize Key=NextTrack}"
                     Click="OnNextClick"
                     IsEnabled="False">
                     <FontIcon FontSize="17" Glyph="&#xE893;" />
@@ -350,8 +374,8 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <Grid>
-                    <TextBlock x:Name="LyricsHeading" Text="歌詞" FontSize="12" FontWeight="SemiBold" />
-                    <TextBlock x:Name="LyricsMode" FontSize="11" HorizontalAlignment="Right" />
+                    <TextBlock x:Name="LyricsHeading" Text="{local:Localize Key=LyricsTitle}" FontSize="12" FontWeight="SemiBold" />
+                    <TextBlock x:Name="LyricsSeekStatus" FontSize="11" HorizontalAlignment="Right" Visibility="Collapsed" />
                 </Grid>
                 <Grid Grid.Row="1">
                     <ScrollViewer
@@ -364,12 +388,12 @@
                     </ScrollViewer>
                     <StackPanel x:Name="LyricsMessagePanel" Spacing="10" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="320">
                         <ProgressRing x:Name="LyricsLoading" Width="24" Height="24" IsActive="False" Visibility="Collapsed" />
-                        <TextBlock x:Name="LyricsMessage" Text="再生中の曲がありません" FontSize="13" TextWrapping="Wrap" TextAlignment="Center" />
-                        <Button x:Name="LyricsRetry" Content="再取得" Style="{StaticResource GhostButton}" Padding="12,5"
+                        <TextBlock x:Name="LyricsMessage" Text="{local:Localize Key=NoSongPlaying}" FontSize="13" TextWrapping="Wrap" TextAlignment="Center" />
+                        <Button x:Name="LyricsRetry" Content="{local:Localize Key=RetryLyrics}" Style="{StaticResource GhostButton}" Padding="12,5"
                             HorizontalAlignment="Center" Visibility="Collapsed" Click="OnLyricsRetryClick" />
                     </StackPanel>
                 </Grid>
-                <HyperlinkButton x:Name="LyricsCredit" Grid.Row="2" Content="Lyrics · LRCLIB" NavigateUri="https://lrclib.net/"
+                <HyperlinkButton x:Name="LyricsCredit" Grid.Row="2" Content="{local:Localize Key=LyricsCredit}" NavigateUri="https://lrclib.net/"
                     HorizontalAlignment="Right" Padding="0" MinHeight="18" FontSize="10" />
             </Grid>
         </Border>

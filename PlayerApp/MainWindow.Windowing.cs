@@ -39,7 +39,7 @@ public sealed partial class MainWindow
         {
             presenter.IsAlwaysOnTop = !presenter.IsAlwaysOnTop;
             _isPinned = presenter.IsAlwaysOnTop;
-            var label = _isPinned ? "最前面の固定を解除" : "最前面に固定";
+            var label = _isPinned ? UiText.UnpinWindow : UiText.PinWindow;
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(PinButton, label);
             Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(PinButton, label);
             UpdateAuxiliaryButtonColors();

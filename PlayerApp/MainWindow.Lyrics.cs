@@ -88,7 +88,7 @@ public sealed partial class MainWindow
         _lyricsVisible = !_lyricsVisible;
         LyricsPanel.Visibility = _lyricsVisible ? Visibility.Visible : Visibility.Collapsed;
         UpdateWindowSize();
-        var label = _lyricsVisible ? "歌詞を非表示" : "歌詞を表示";
+        var label = _lyricsVisible ? UiText.HideLyrics : UiText.ShowLyrics;
         AutomationProperties.SetName(LyricsButton, label);
         ToolTipService.SetToolTip(LyricsButton, label);
         UpdateAuxiliaryButtonColors();
@@ -117,8 +117,15 @@ public sealed partial class MainWindow
     private void RefreshLyricsTrack()
     {
         var track = LyricsTrack.Create(_session?.Media, _playbackTimeline.EndTime);
-        if (track == _lyricsTrack)
+        // A reconnect can deliver an empty snapshot before the actual metadata.
+        // Duration/album changes do not invalidate lyrics for the playing song.
+        if ((track is null && _session is not null) || track == _lyricsTrack)
         {
+            return;
+        }
+        if (track?.IsSameSong(_lyricsTrack) == true)
+        {
+            _lyricsTrack = track;
             return;
         }
         CancelLyricsRequest();
@@ -132,7 +139,7 @@ public sealed partial class MainWindow
         _lyricsPointerDown = false;
         LyricsLines.Children.Clear();
         _lyricsRows.Clear();
-        ShowLyricsMessage(track is null ? "曲名とアーティスト情報が必要です" : "歌詞を探しています…", false, false);
+        ShowLyricsMessage(track is null ? UiText.TrackMetadataRequired : UiText.SearchingLyrics, false, false);
         UpdateLyricsTimerState();
         if (_lyricsVisible)
         {
@@ -145,18 +152,23 @@ public sealed partial class MainWindow
         CancelLyricsRequest();
         if (_lyricsTrack is not { } track || !_lyricsVisible || _closed)
         {
-            ShowLyricsMessage(_session is null ? "再生中の曲がありません" : "曲名とアーティスト情報が必要です", false, false);
+            ShowLyricsMessage(_session is null ? UiText.NoSongPlaying : UiText.TrackMetadataRequired, false, false);
             return;
         }
         var request = new CancellationTokenSource();
         _lyricsRequest = request;
         var generation = _lyricsGeneration;
-        ShowLyricsMessage("歌詞を探しています…", true, false);
+        ShowLyricsMessage(UiText.SearchingLyrics, true, false);
         try
         {
             // Metadata and duration may arrive in separate broker messages.
             await Task.Delay(300, request.Token);
-            var document = (await _lyricsClient.GetAsync(track, refresh, request.Token)).ForDisplay();
+            var lookupTrack = _lyricsTrack;
+            if (lookupTrack is null || !track.IsSameSong(lookupTrack))
+            {
+                return;
+            }
+            var document = (await _lyricsClient.GetAsync(lookupTrack, refresh, request.Token)).ForDisplay();
             if (_closed || !_lyricsVisible || generation != _lyricsGeneration)
             {
                 return;
@@ -176,7 +188,7 @@ public sealed partial class MainWindow
             if (!_closed && _lyricsVisible && generation == _lyricsGeneration)
             {
                 ShowLyricsMessage(ex is LyricsRateLimitException
-                    ? "しばらく待ってから再取得してください" : "歌詞を取得できませんでした", false, true);
+                    ? UiText.LyricsRetryLater : UiText.LyricsFetchFailed, false, true);
             }
         }
         finally
@@ -204,7 +216,8 @@ public sealed partial class MainWindow
         LyricsLoading.IsActive = loading;
         LyricsLoading.Visibility = loading ? Visibility.Visible : Visibility.Collapsed;
         LyricsRetry.Visibility = retry ? Visibility.Visible : Visibility.Collapsed;
-        LyricsMode.Text = "";
+        LyricsSeekStatus.Text = "";
+        LyricsSeekStatus.Visibility = Visibility.Collapsed;
     }
 
     private void DisplayLyrics(LyricsDocument document)
@@ -218,7 +231,7 @@ public sealed partial class MainWindow
         _lyricsFollow.Reset();
         if (document.Kind is LyricsKind.NotFound or LyricsKind.Instrumental)
         {
-            ShowLyricsMessage(document.Kind == LyricsKind.Instrumental ? "この曲には歌詞がありません" : "歌詞が見つかりませんでした", false, document.Kind == LyricsKind.NotFound);
+            ShowLyricsMessage(document.Kind == LyricsKind.Instrumental ? UiText.InstrumentalTrack : UiText.LyricsNotFound, false, document.Kind == LyricsKind.NotFound);
             UpdateLyricsTimerState();
             return;
         }
@@ -263,7 +276,7 @@ public sealed partial class MainWindow
                 FocusVisualPrimaryBrush = _lyricsForeground,
                 FocusVisualSecondaryBrush = _lyricsOnAccent
             };
-            AutomationProperties.SetName(row, gap ? "歌詞のない区間" : line);
+            AutomationProperties.SetName(row, gap ? UiText.LyricsGap : line);
             AutomationProperties.SetAutomationId(row, $"LyricLine{_lyricsRows.Count}");
             row.Click += OnLyricLineClick;
             _lyricsRows.Add(new(row, text, dots));
@@ -304,8 +317,9 @@ public sealed partial class MainWindow
         {
             return;
         }
-        LyricsMode.Text = DateTimeOffset.UtcNow < _lyricsSeekErrorUntil ? "移動できませんでした" : document.Kind == LyricsKind.Synced
-            ? (_playbackTimeline.HasTimeline ? "同期歌詞" : "同期歌詞 · 時刻情報なし") : "同期なし";
+        var seekFailed = DateTimeOffset.UtcNow < _lyricsSeekErrorUntil;
+        LyricsSeekStatus.Text = seekFailed ? UiText.SeekFailed : "";
+        LyricsSeekStatus.Visibility = seekFailed ? Visibility.Visible : Visibility.Collapsed;
         var position = _seeking ? TimeSpan.FromSeconds(_timelineValue) : _playbackTimeline.GetPosition(DateTimeOffset.Now);
         var forwardPlayback = _session?.Playback is { PlaybackStatus: SessionPlaybackState.Playing } playback && (playback.PlaybackRate ?? 1) > 0;
         var index = document.Kind == LyricsKind.Synced && _playbackTimeline.HasTimeline && position < _playbackTimeline.EndTime
@@ -348,7 +362,7 @@ public sealed partial class MainWindow
         var active = index == _lyricsActiveIndex;
         var scale = active ? 1f : 0.8f;
         text.Scale = new Vector3(scale, scale, 1f);
-        AutomationProperties.SetItemStatus(row, active ? (dots is null ? "現在の歌詞" : "歌詞のない区間") : "");
+        AutomationProperties.SetItemStatus(row, active ? (dots is null ? UiText.CurrentLyric : UiText.LyricsGap) : "");
         if (dots is not null)
         {
             foreach (var dot in dots)
@@ -372,7 +386,7 @@ public sealed partial class MainWindow
         }
         _lyricsGapIndex = index;
         _lyricsGapPhase = gap.Phase;
-        AutomationProperties.SetItemStatus(_lyricsRows[index].Row, $"歌詞のない区間 {gap.Phase + 1}/3");
+        AutomationProperties.SetItemStatus(_lyricsRows[index].Row, UiText.Format(UiText.LyricsGapProgress, gap.Phase + 1));
     }
 
     private bool CanSeekLyrics => !_closed && _timelineSeekEnabled && _mediaClient?.IsConnected == true
@@ -385,7 +399,7 @@ public sealed partial class MainWindow
             var row = _lyricsRows[i].Row;
             var position = CanSeekLyrics ? _lyricsDocument?.GetSeekPosition(i, _playbackTimeline.EndTime) : null;
             row.IsEnabled = row.IsTabStop = position is not null;
-            var label = position is { } time ? $"{FormatTime(time)}へ移動" : null;
+            var label = position is { } time ? UiText.Format(UiText.SeekTo, FormatTime(time)) : null;
             ToolTipService.SetToolTip(row, label);
             AutomationProperties.SetHelpText(row, label ?? "");
         }
@@ -448,7 +462,7 @@ public sealed partial class MainWindow
         LyricsPanel.Background = new SolidColorBrush(_accessibilitySettings.HighContrast ? _uiSettings.GetColorValue(Windows.UI.ViewManagement.UIColorType.Background) : Color.FromArgb(38, 0, 0, 0));
         LyricsPanel.BorderBrush = new SolidColorBrush(hover);
         LyricsHeading.Foreground = _lyricsForeground;
-        LyricsMode.Foreground = _lyricsSecondary;
+        LyricsSeekStatus.Foreground = _lyricsSecondary;
         LyricsMessage.Foreground = _lyricsForeground;
         LyricsCredit.Foreground = _lyricsSecondary;
         LyricsLoading.Foreground = _lyricsAccent;

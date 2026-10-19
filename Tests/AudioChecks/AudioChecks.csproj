@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <Compile Include="../../PlayerApp/AudioIdentity.cs" Link="AudioIdentity.cs" />
+    <Compile Include="../../PlayerApp/AudioMixerController.cs" Link="AudioMixerController.cs" />
+    <Compile Include="../../PlayerApp/AudioDeviceBattery.cs" Link="AudioDeviceBattery.cs" />
+    <Compile Include="../../PlayerApp/AudioDevicePresentation.cs" Link="AudioDevicePresentation.cs" />
+  </ItemGroup>
+</Project>

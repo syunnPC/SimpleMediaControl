@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../PlayerApp/UiText.cs" Link="UiText.cs" />
+    <EmbeddedResource Include="../../PlayerApp/Resources/UiStrings.resx"
+                      Link="Resources/UiStrings.resx" LogicalName="PlayerApp.Resources.UiStrings.resources" />
+    <EmbeddedResource Include="../../PlayerApp/Resources/UiStrings.ja.resx"
+                      Link="Resources/UiStrings.ja.resx" LogicalName="PlayerApp.Resources.UiStrings.ja.resources" />
+  </ItemGroup>
+</Project>

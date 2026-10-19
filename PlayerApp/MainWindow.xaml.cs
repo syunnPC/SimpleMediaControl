@@ -212,10 +212,11 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            MediaLog.Write($"Media client initialization failed: {ex}");
             OnUi(() =>
             {
-                TitleText.Text = "メディア情報を取得できません";
-                ArtistText.Text = ex.Message;
+                TitleText.Text = UiText.MediaUnavailable;
+                ArtistText.Text = UiText.MediaConnectionFailed;
             });
         }
     }
@@ -240,6 +241,8 @@ public sealed partial class MainWindow : Window
     {
         _closed = true;
         _mediaGeneration++;
+        _audioMixer?.Dispose();
+        _audioMixer = null;
         DisposeLyrics();
         DisposePaletteRenderer();
         _timelineTimer?.Stop();
@@ -279,7 +282,7 @@ public sealed partial class MainWindow : Window
         else
         {
             SetTransportEnabled(false);
-            ArtistText.Text = "メディア情報を再接続しています…";
+            ArtistText.Text = UiText.MediaReconnecting;
             UpdateTimelineDisplay();
         }
     }
@@ -354,7 +357,7 @@ public sealed partial class MainWindow : Window
         _session = null;
         _currentSessionId = Guid.Empty;
         _mediaGeneration++;
-        _appVolume = null;
+        _volumeSeeking = false;
     }
 
     private static bool IsSameSession(MediaSession? session, MediaSession? other)
@@ -404,8 +407,8 @@ public sealed partial class MainWindow : Window
     private void ShowEmpty()
     {
         ClearArtPalette();
-        TitleText.Text = "再生中のメディアがありません";
-        ArtistText.Text = "Spotifyなどのアプリで再生すると表示されます";
+        TitleText.Text = UiText.NoMediaPlaying;
+        ArtistText.Text = UiText.MediaStartHint;
         AlbumArtImage.Source = null;
         AlbumArtImage.Visibility = Visibility.Collapsed;
         ArtPlaceholder.Visibility = Visibility.Visible;
@@ -421,7 +424,7 @@ public sealed partial class MainWindow : Window
         PlayPauseButton.IsEnabled = false;
         NextButton.IsEnabled = false;
         RefreshLyricsTrack();
-        ShowLyricsMessage("再生中の曲がありません", false, false);
+        ShowLyricsMessage(UiText.NoSongPlaying, false, false);
     }
 
     private async Task RefreshMediaAsync()
@@ -441,7 +444,7 @@ public sealed partial class MainWindow : Window
             {
                 return;
             }
-            TitleText.Text = string.IsNullOrWhiteSpace(props.Title) ? "不明なタイトル" : props.Title;
+            TitleText.Text = string.IsNullOrWhiteSpace(props.Title) ? UiText.UnknownTitle : props.Title;
             var artist = string.IsNullOrWhiteSpace(props.Artist)
                 ? (string.IsNullOrWhiteSpace(props.AlbumArtist) ? "" : props.AlbumArtist)
                 : props.Artist;
@@ -480,6 +483,8 @@ public sealed partial class MainWindow : Window
                 FocusVisualPrimaryBrush = new SolidColorBrush(_paletteForeground)
             };
             Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(button, GetSessionDisplayLabel(session));
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button,
+                UiText.Format(UiText.SwitchToApp, GetSessionDisplayLabel(session)));
             var placeholder = new FontIcon
             {
                 Glyph = "\uE8D6",
@@ -616,6 +621,9 @@ public sealed partial class MainWindow : Window
             var playing = info.PlaybackStatus == SessionPlaybackState.Playing;
             _playbackTimeline.SetPlayback(playing, info.PlaybackRate, DateTimeOffset.Now);
             PlayPauseIcon.Glyph = playing ? PauseGlyph : PlayGlyph;
+            var label = playing ? UiText.Pause : UiText.Play;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(PlayPauseButton, label);
+            ToolTipService.SetToolTip(PlayPauseButton, label);
             PlayPauseButton.IsEnabled = playing ? controls.IsPauseEnabled : controls.IsPlayEnabled;
             PreviousButton.IsEnabled = controls.IsPreviousEnabled;
             NextButton.IsEnabled = controls.IsNextEnabled;
@@ -633,6 +641,8 @@ public sealed partial class MainWindow : Window
     {
         _playbackTimeline.SetPlayback(false, null, DateTimeOffset.Now);
         PlayPauseIcon.Glyph = PlayGlyph;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(PlayPauseButton, UiText.Play);
+        ToolTipService.SetToolTip(PlayPauseButton, UiText.Play);
         PlayPauseButton.IsEnabled = enabled;
         PreviousButton.IsEnabled = enabled;
         NextButton.IsEnabled = enabled;
@@ -884,7 +894,6 @@ public sealed partial class MainWindow : Window
                 return segment;
             }
         }
-        return string.IsNullOrEmpty(source) ? "不明なアプリ" : source;
+        return string.IsNullOrEmpty(source) ? UiText.UnknownApp : source;
     }
 }
-

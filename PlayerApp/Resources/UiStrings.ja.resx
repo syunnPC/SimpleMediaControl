@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="LanguageTag" xml:space="preserve"><value>ja-JP</value></data>
+  <data name="NoMediaPlaying" xml:space="preserve"><value>再生中のメディアがありません</value></data>
+  <data name="MediaStartHint" xml:space="preserve"><value>Spotifyなどのアプリで再生すると表示されます</value></data>
+  <data name="ShowLyrics" xml:space="preserve"><value>歌詞を表示</value></data>
+  <data name="HideLyrics" xml:space="preserve"><value>歌詞を非表示</value></data>
+  <data name="PinWindow" xml:space="preserve"><value>最前面に固定</value></data>
+  <data name="UnpinWindow" xml:space="preserve"><value>最前面の固定を解除</value></data>
+  <data name="MinimizeWindow" xml:space="preserve"><value>最小化</value></data>
+  <data name="CloseWindow" xml:space="preserve"><value>閉じる</value></data>
+  <data name="PreviousTrack" xml:space="preserve"><value>前の曲</value></data>
+  <data name="Play" xml:space="preserve"><value>再生</value></data>
+  <data name="Pause" xml:space="preserve"><value>一時停止</value></data>
+  <data name="NextTrack" xml:space="preserve"><value>次の曲</value></data>
+  <data name="LyricsTitle" xml:space="preserve"><value>歌詞</value></data>
+  <data name="NoSongPlaying" xml:space="preserve"><value>再生中の曲がありません</value></data>
+  <data name="RetryLyrics" xml:space="preserve"><value>再取得</value></data>
+  <data name="LyricsCredit" xml:space="preserve"><value>歌詞 · LRCLIB</value></data>
+  <data name="TrackMetadataRequired" xml:space="preserve"><value>曲名とアーティスト情報が必要です</value></data>
+  <data name="SearchingLyrics" xml:space="preserve"><value>歌詞を探しています…</value></data>
+  <data name="LyricsRetryLater" xml:space="preserve"><value>しばらく待ってから再取得してください</value></data>
+  <data name="LyricsFetchFailed" xml:space="preserve"><value>歌詞を取得できませんでした</value></data>
+  <data name="InstrumentalTrack" xml:space="preserve"><value>この曲には歌詞がありません</value></data>
+  <data name="LyricsNotFound" xml:space="preserve"><value>歌詞が見つかりませんでした</value></data>
+  <data name="LyricsGap" xml:space="preserve"><value>歌詞のない区間</value></data>
+  <data name="CurrentLyric" xml:space="preserve"><value>現在の歌詞</value></data>
+  <data name="SeekFailed" xml:space="preserve"><value>移動できませんでした</value></data>
+  <data name="LyricsGapProgress" xml:space="preserve"><value>歌詞のない区間 {0}/3</value></data>
+  <data name="SeekTo" xml:space="preserve"><value>{0}へ移動</value></data>
+  <data name="MediaUnavailable" xml:space="preserve"><value>メディア情報を取得できません</value></data>
+  <data name="MediaReconnecting" xml:space="preserve"><value>メディア情報を再接続しています…</value></data>
+  <data name="MediaConnectionFailed" xml:space="preserve"><value>メディアサービスに接続できませんでした</value></data>
+  <data name="UnknownTitle" xml:space="preserve"><value>不明なタイトル</value></data>
+  <data name="UnknownApp" xml:space="preserve"><value>不明なアプリ</value></data>
+  <data name="SystemVolume" xml:space="preserve"><value>システム音量</value></data>
+  <data name="AppVolume" xml:space="preserve"><value>アプリ音量</value></data>
+  <data name="Mute" xml:space="preserve"><value>ミュート</value></data>
+  <data name="Unmute" xml:space="preserve"><value>ミュート解除</value></data>
+  <data name="AudioSessionUnavailable" xml:space="preserve"><value>このアプリのオーディオセッションがありません</value></data>
+  <data name="BatteryDescription" xml:space="preserve"><value>デバイスのバッテリー: {0}%（Windows報告値・複数ある場合は最小値）</value></data>
+  <data name="AudioActionName" xml:space="preserve"><value>{0}: {1}</value></data>
+  <data name="VolumePercent" xml:space="preserve"><value>{0:0}%</value></data>
+  <data name="SwitchToApp" xml:space="preserve"><value>{0}に切り替え</value></data>
+</root>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <data name="LanguageTag" xml:space="preserve"><value>en-US</value></data>
+  <data name="NoMediaPlaying" xml:space="preserve"><value>No media is playing</value></data>
+  <data name="MediaStartHint" xml:space="preserve"><value>Play something in Spotify or another app</value></data>
+  <data name="ShowLyrics" xml:space="preserve"><value>Show lyrics</value></data>
+  <data name="HideLyrics" xml:space="preserve"><value>Hide lyrics</value></data>
+  <data name="PinWindow" xml:space="preserve"><value>Always on top</value></data>
+  <data name="UnpinWindow" xml:space="preserve"><value>Turn off always on top</value></data>
+  <data name="MinimizeWindow" xml:space="preserve"><value>Minimize</value></data>
+  <data name="CloseWindow" xml:space="preserve"><value>Close</value></data>
+  <data name="PreviousTrack" xml:space="preserve"><value>Previous track</value></data>
+  <data name="Play" xml:space="preserve"><value>Play</value></data>
+  <data name="Pause" xml:space="preserve"><value>Pause</value></data>
+  <data name="NextTrack" xml:space="preserve"><value>Next track</value></data>
+  <data name="LyricsTitle" xml:space="preserve"><value>Lyrics</value></data>
+  <data name="NoSongPlaying" xml:space="preserve"><value>No song is playing</value></data>
+  <data name="RetryLyrics" xml:space="preserve"><value>Fetch again</value></data>
+  <data name="LyricsCredit" xml:space="preserve"><value>Lyrics · LRCLIB</value></data>
+  <data name="TrackMetadataRequired" xml:space="preserve"><value>Song title and artist are required</value></data>
+  <data name="SearchingLyrics" xml:space="preserve"><value>Searching for lyrics…</value></data>
+  <data name="LyricsRetryLater" xml:space="preserve"><value>Please wait before trying again</value></data>
+  <data name="LyricsFetchFailed" xml:space="preserve"><value>Could not fetch lyrics</value></data>
+  <data name="InstrumentalTrack" xml:space="preserve"><value>This song has no lyrics</value></data>
+  <data name="LyricsNotFound" xml:space="preserve"><value>No lyrics found</value></data>
+  <data name="LyricsGap" xml:space="preserve"><value>Instrumental break</value></data>
+  <data name="CurrentLyric" xml:space="preserve"><value>Current lyric</value></data>
+  <data name="SeekFailed" xml:space="preserve"><value>Could not seek</value></data>
+  <data name="LyricsGapProgress" xml:space="preserve"><value>Instrumental break {0}/3</value></data>
+  <data name="SeekTo" xml:space="preserve"><value>Seek to {0}</value></data>
+  <data name="MediaUnavailable" xml:space="preserve"><value>Media information is unavailable</value></data>
+  <data name="MediaReconnecting" xml:space="preserve"><value>Reconnecting to media…</value></data>
+  <data name="MediaConnectionFailed" xml:space="preserve"><value>Could not connect to the media service</value></data>
+  <data name="UnknownTitle" xml:space="preserve"><value>Unknown title</value></data>
+  <data name="UnknownApp" xml:space="preserve"><value>Unknown app</value></data>
+  <data name="SystemVolume" xml:space="preserve"><value>System volume</value></data>
+  <data name="AppVolume" xml:space="preserve"><value>App volume</value></data>
+  <data name="Mute" xml:space="preserve"><value>Mute</value></data>
+  <data name="Unmute" xml:space="preserve"><value>Unmute</value></data>
+  <data name="AudioSessionUnavailable" xml:space="preserve"><value>This app has no audio session</value></data>
+  <data name="BatteryDescription" xml:space="preserve"><value>Device battery: {0}% (reported by Windows; lowest value if multiple)</value></data>
+  <data name="AudioActionName" xml:space="preserve"><value>{0}: {1}</value></data>
+  <data name="VolumePercent" xml:space="preserve"><value>{0:0}%</value></data>
+  <data name="SwitchToApp" xml:space="preserve"><value>Switch to {0}</value></data>
+</root>

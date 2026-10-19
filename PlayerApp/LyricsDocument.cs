@@ -9,6 +9,14 @@ namespace PlayerApp;
 
 internal sealed record LyricsTrack(string Title, string Artist, string Album, int? DurationSeconds)
 {
+    public bool IsSameSong(LyricsTrack? other)
+    {
+        var current = Canonicalize();
+        var next = other?.Canonicalize();
+        return next is not null && string.Equals(current.Title, next.Title, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(current.Artist, next.Artist, StringComparison.OrdinalIgnoreCase);
+    }
+
     public LyricsTrack Canonicalize() => this with
     {
         Title = Title.Normalize(NormalizationForm.FormKC).Trim(),

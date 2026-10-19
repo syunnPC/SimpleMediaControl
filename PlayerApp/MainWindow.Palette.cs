@@ -131,8 +131,11 @@ public sealed partial class MainWindow
         DurationText.Foreground = secondaryBrush;
         VolumeText.Foreground = secondaryBrush;
         VolumeIcon.Foreground = secondaryBrush;
+        DeviceBatteryText.Foreground = secondaryBrush;
+        VolumeMuteRing.Stroke = foregroundBrush;
+        VolumeMuteSlash.Stroke = foregroundBrush;
         ArtPlaceholder.Foreground = secondaryBrush;
-        foreach (var button in new[] { PreviousButton, PlayPauseButton, NextButton, MinimizeButton, CloseButton, LyricsButton, PinButton }
+        foreach (var button in new[] { PreviousButton, PlayPauseButton, NextButton, MinimizeButton, CloseButton, LyricsButton, PinButton, VolumeDeviceButton }
             .Concat(SessionSwitchPanel.Children.OfType<Button>()))
         {
             button.Foreground = foregroundBrush;
