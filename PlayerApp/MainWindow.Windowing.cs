@@ -12,6 +12,8 @@ public sealed partial class MainWindow
 {
     private const int DWMWA_BORDER_COLOR = 34;
     private const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
+    private const double WindowWidth = 430;
+    private const double CompactWindowHeight = 142;
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(nint hwnd, int attribute, ref int value, int valueSize);
@@ -19,7 +21,12 @@ public sealed partial class MainWindow
     [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
     private static extern int GetWindowLong(nint hwnd, int index);
 
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(nint hwnd);
+
     private nint _mainHwnd;
+    private XamlRoot? _windowXamlRoot;
+    private double _windowRasterizationScale;
     private int _frameClearCounter;
     private bool _isPinned;
 
@@ -43,7 +50,6 @@ public sealed partial class MainWindow
         try
         {
             var appWindow = AppWindow;
-            appWindow.Resize(new SizeInt32(430, 142));
             ExtendsContentIntoTitleBar = true;
             SetTitleBar(DragZone);
             if (appWindow.Presenter is OverlappedPresenter presenter)
@@ -55,9 +61,60 @@ public sealed partial class MainWindow
             _mainHwnd = Microsoft.UI.Win32Interop.GetWindowFromWindowId(appWindow.Id);
             ClearFrameStyles();
             SetDwmAttributes();
+            UpdateWindowSize();
         }
         catch
         {
+        }
+    }
+
+    private void OnWindowContentLoaded(object sender, RoutedEventArgs args)
+    {
+        if (_windowXamlRoot is null)
+        {
+            _windowXamlRoot = RootGrid.XamlRoot;
+            _windowXamlRoot.Changed += OnWindowXamlRootChanged;
+        }
+        UpdateWindowSize();
+        OnUi(UpdateNonClientRegions);
+    }
+
+    private void OnWindowXamlRootChanged(XamlRoot sender, XamlRootChangedEventArgs args)
+    {
+        if (sender.RasterizationScale != _windowRasterizationScale)
+        {
+            // Wait for WinUI to finish applying the monitor's DPI change.
+            OnUi(() =>
+            {
+                UpdateWindowSize();
+                UpdateNonClientRegions();
+            });
+        }
+    }
+
+    private void UpdateWindowSize()
+    {
+        // XAML dimensions are logical pixels; AppWindow dimensions are physical pixels.
+        // XamlRoot is only available after loading, so use the HWND's DPI at startup.
+        var scale = _windowXamlRoot?.RasterizationScale ?? GetDpiForWindow(_mainHwnd) / 96.0;
+        if (scale <= 0)
+        {
+            return;
+        }
+        _windowRasterizationScale = scale;
+        var height = CompactWindowHeight + (_lyricsVisible ? LyricsPanel.Height + LyricsPanel.Margin.Top : 0);
+        var size = new SizeInt32((int)Math.Ceiling(WindowWidth * scale), (int)Math.Ceiling(height * scale));
+        var appWindow = AppWindow;
+        if (appWindow.ClientSize.Width != size.Width || appWindow.ClientSize.Height != size.Height)
+        {
+            // Size the content area after removing the native frame, rather than the outer window.
+            appWindow.ResizeClient(size);
+        }
+        var workArea = DisplayArea.GetFromWindowId(appWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        var top = Math.Max(workArea.Y, Math.Min(appWindow.Position.Y, workArea.Y + workArea.Height - appWindow.Size.Height));
+        if (top != appWindow.Position.Y)
+        {
+            appWindow.Move(new PointInt32(appWindow.Position.X, top));
         }
     }
 

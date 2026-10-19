@@ -16,7 +16,6 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using Windows.Graphics;
 using Windows.UI;
 using VirtualKey = Windows.System.VirtualKey;
 
@@ -45,7 +44,6 @@ public sealed partial class MainWindow
     private DateTimeOffset _lyricsSeekErrorUntil;
     private bool _lyricsPointerDown;
     private DateTimeOffset _lyricsFollowAfter;
-    private double _compactWindowHeight;
 
     private void InitializeLyrics()
     {
@@ -87,17 +85,9 @@ public sealed partial class MainWindow
     [SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "Click handler referenced by MainWindow.xaml.")]
     private void OnLyricsClick(object sender, RoutedEventArgs e)
     {
-        var scale = RootGrid.XamlRoot.RasterizationScale;
-        if (!_lyricsVisible)
-        {
-            _compactWindowHeight = AppWindow.Size.Height / scale;
-        }
         _lyricsVisible = !_lyricsVisible;
         LyricsPanel.Visibility = _lyricsVisible ? Visibility.Visible : Visibility.Collapsed;
-        var height = (int)Math.Round((_compactWindowHeight + (_lyricsVisible ? 292 : 0)) * scale);
-        var workArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
-        var top = Math.Max(workArea.Y, Math.Min(AppWindow.Position.Y, workArea.Y + workArea.Height - height));
-        AppWindow.MoveAndResize(new RectInt32(AppWindow.Position.X, top, AppWindow.Size.Width, height));
+        UpdateWindowSize();
         var label = _lyricsVisible ? "歌詞を非表示" : "歌詞を表示";
         AutomationProperties.SetName(LyricsButton, label);
         ToolTipService.SetToolTip(LyricsButton, label);

@@ -57,7 +57,7 @@ public sealed partial class MainWindow : Window
         SessionSwitchScroller.ViewChanged += (sender, args) => OnSessionSwitchViewChanged();
         InitializeAudioVolumes();
         AppWindow.Changed += OnAppWindowChanged;
-        RootGrid.Loaded += (sender, args) => OnUi(UpdateNonClientRegions);
+        RootGrid.Loaded += OnWindowContentLoaded;
         RootGrid.SizeChanged += (sender, args) =>
         {
             OnUi(UpdateNonClientRegions);
@@ -251,6 +251,11 @@ public sealed partial class MainWindow : Window
         _titleMarqueeStoryboard?.Stop();
         _artistMarqueeStoryboard?.Stop();
         AppWindow.Changed -= OnAppWindowChanged;
+        RootGrid.Loaded -= OnWindowContentLoaded;
+        if (_windowXamlRoot is not null)
+        {
+            _windowXamlRoot.Changed -= OnWindowXamlRootChanged;
+        }
         if (_mediaClient != null)
         {
             _mediaClient.SessionsChanged -= OnMediaSessionsChanged;
