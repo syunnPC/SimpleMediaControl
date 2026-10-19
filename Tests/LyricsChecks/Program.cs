@@ -195,6 +195,15 @@ foreach (var (title, equivalentTitle) in new[] { ("ばな", "は\u3099な"), ("�
 Check(LyricsSearch.Select(new("My Telepathy!私の熱い光線", "櫻井優衣", "", 222),
     [Candidate(title: "My Telepathy！私の熱い光線", artist: "櫻井優衣", duration: 223)]) is not null, "user reference punctuation variant");
 Check(LyricsSearch.Select(new("Song（Ｌｉｖｅ）", "Fixture Artist", "", 200), [Candidate(title: "Song (Live)")]) is not null, "version qualifiers normalize width too");
+Check(LyricsSearch.Select(new("Synthetic Sunrise", "Fixture Artist", "", 200), [Candidate(duration: 203)]) is not null,
+    "three-second duration difference is accepted");
+Check(LyricsSearch.Select(new("Synthetic Sunrise", "Fixture Artist", "", 1000), [Candidate(duration: 1009)]) is not null,
+    "one-percent duration difference is accepted for long tracks");
+Check(LyricsSearch.Select(new("Synthetic Sunrise", "Fixture Artist", "", 1000), [Candidate(duration: 1011)]) is null,
+    "duration difference beyond one percent is rejected");
+Check(LyricsSearch.Select(new("Synthetic Sunrise", "Fixture Artist", "", 1000),
+    [Candidate(duration: 1008), Candidate(duration: 1002)])?.Duration == 1002,
+    "closest duration wins among multiple accepted candidates");
 Check(LyricsSearch.Select(searchTrack with { DurationSeconds = null }, [Candidate(title: "Synthetic Sunrize")]) is null, "unknown duration needs canonical title match");
 Check(LyricsSearch.Select(searchTrack, [correct, Candidate(title: "Synthetic Sunrise!", album: "Other", duration: 202)]) == correct, "closest duration wins regardless of album");
 Check(LyricsSearch.Select(new("Synthetic Sunrize", "Fixture Artist", "", 200), [Candidate(), Candidate(title: "Synthetic Sunrige")]) is null, "ambiguous competing recordings rejected");

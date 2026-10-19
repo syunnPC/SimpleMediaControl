@@ -37,6 +37,7 @@ internal sealed class LyricsClient(HttpClient http, TimeProvider clock) : IDispo
                 return cached.Document;
             }
             var document = LyricsDocument.Parse(null, null, false);
+            LyricsRecord? bestMatch = null;
             // Search returns all matching editions, unlike /get which may select
             // a plain-only edition despite an equivalent synced record existing.
             foreach (var query in LyricsSearch.GetQueries(track))
@@ -48,18 +49,20 @@ internal sealed class LyricsClient(HttpClient http, TimeProvider clock) : IDispo
                 }
                 var candidates = JsonSerializer.Deserialize<LyricsRecord[]>(payload, JsonOptions)
                     ?? throw new InvalidDataException("Empty LRCLIB search response.");
-                if (LyricsSearch.Select(track, candidates) is { } match)
+                if (LyricsSearch.Select(track, candidates) is { } match
+                    && (bestMatch is null || LyricsSearch.IsBetterCandidate(track, match, bestMatch)))
                 {
-                    var found = ParseDocument(match);
-                    if (found.Kind == LyricsKind.Synced || document.Kind == LyricsKind.NotFound)
-                    {
-                        document = found;
-                    }
-                    if (document.Kind is LyricsKind.Synced or LyricsKind.Instrumental)
-                    {
-                        break;
-                    }
+                    bestMatch = match;
                 }
+                if (bestMatch is not null && LyricsSearch.HasExactDuration(track, bestMatch)
+                    && (!string.IsNullOrWhiteSpace(bestMatch.SyncedLyrics) || bestMatch.Instrumental))
+                {
+                    break;
+                }
+            }
+            if (bestMatch is not null)
+            {
+                document = ParseDocument(bestMatch);
             }
             if (_cache.Count >= 50 && !_cache.ContainsKey(track))
             {

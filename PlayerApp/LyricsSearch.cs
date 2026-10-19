@@ -65,20 +65,29 @@ internal static class LyricsSearch
     public static LyricsRecord? Select(LyricsTrack track, IEnumerable<LyricsRecord> candidates)
     {
         var ranked = candidates.Where(c => c.Instrumental || !string.IsNullOrWhiteSpace(c.SyncedLyrics) || !string.IsNullOrWhiteSpace(c.PlainLyrics))
-            .Select(c => (Record: c, Score: Score(track, c)))
+            .Select(c => (Record: c, Score: Score(track, c), Difference: DurationDifference(track, c) ?? 0))
             .Where(c => c.Score > 0).OrderByDescending(c => c.Score).ToArray();
         if (ranked.Length == 0)
         {
             return null;
         }
-        var best = ranked[0];
+        var best = ranked.OrderBy(c => c.Difference).ThenByDescending(c => c.Score).First();
         // Different recordings with almost equal evidence are not safe to auto-select.
-        if (ranked.Skip(1).Any(c => best.Score - c.Score < 0.25 && !SameRecording(best.Record, c.Record)))
+        if (ranked.Skip(1).Any(c => Math.Abs(best.Difference - c.Difference) < 0.001
+            && best.Score - c.Score < 0.25 && !SameRecording(best.Record, c.Record)))
         {
             return null;
         }
         return best.Record;
     }
+
+    internal static bool IsBetterCandidate(LyricsTrack track, LyricsRecord candidate, LyricsRecord current) =>
+        (DurationDifference(track, candidate) ?? 0) < (DurationDifference(track, current) ?? 0)
+        || (Math.Abs((DurationDifference(track, candidate) ?? 0) - (DurationDifference(track, current) ?? 0)) < 0.001
+            && Score(track, candidate) > Score(track, current));
+
+    internal static bool HasExactDuration(LyricsTrack track, LyricsRecord candidate) =>
+        DurationDifference(track, candidate) is 0;
 
     private static double Score(LyricsTrack track, LyricsRecord candidate)
     {
@@ -95,16 +104,17 @@ internal static class LyricsSearch
         var durationScore = 0.0;
         if (track.DurationSeconds is { } seconds)
         {
-            if (candidate.Duration is not { } duration || !double.IsFinite(duration) || duration <= 0)
+            var difference = DurationDifference(track, candidate);
+            if (difference is not { } durationDifference)
             {
                 return 0;
             }
-            var difference = Math.Abs(seconds - duration);
-            if (difference > 5)
+            var tolerance = Math.Max(seconds * 0.01, 3);
+            if (durationDifference > tolerance)
             {
                 return 0;
             }
-            durationScore = 1 - difference / 6;
+            durationScore = 1 - durationDifference / tolerance;
         }
         // Without a duration, only unambiguous canonical title/artist matches qualify.
         else if (titleScore < 1 || artistScore < 1)
@@ -115,6 +125,17 @@ internal static class LyricsSearch
         // over a plain edition with a slightly closer rounded duration.
         return titleScore * 6 + artistScore * 4 + durationScore * 0.2
             + (!string.IsNullOrWhiteSpace(candidate.SyncedLyrics) ? 0.3 : 0);
+    }
+
+    private static double? DurationDifference(LyricsTrack track, LyricsRecord candidate)
+    {
+        if (track.DurationSeconds is not { } seconds)
+        {
+            return null;
+        }
+        return candidate.Duration is { } duration && double.IsFinite(duration) && duration > 0
+            ? Math.Abs(seconds - duration)
+            : null;
     }
 
     private static bool SameRecording(LyricsRecord a, LyricsRecord b) =>
