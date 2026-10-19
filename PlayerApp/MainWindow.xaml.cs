@@ -22,7 +22,7 @@ public sealed partial class MainWindow : Window
     private DispatcherQueueTimer? _timelineTimer;
     private string? _selectedAumid;
     private bool _seeking;
-    private DateTimeOffset _seekingAt;
+    private uint _seekingPointerId;
     private Guid _currentSessionId;
     private int _mediaGeneration;
     private bool _closed;
@@ -346,6 +346,8 @@ public sealed partial class MainWindow : Window
 
     private void DetachSession()
     {
+        CancelTimelineSeek();
+        CancelVolumeSet();
         _playbackTimeline.Clear();
         if (_session is null)
         {
@@ -357,7 +359,6 @@ public sealed partial class MainWindow : Window
         _session = null;
         _currentSessionId = Guid.Empty;
         _mediaGeneration++;
-        _volumeSeeking = false;
     }
 
     private static bool IsSameSession(MediaSession? session, MediaSession? other)
@@ -628,6 +629,10 @@ public sealed partial class MainWindow : Window
             PreviousButton.IsEnabled = controls.IsPreviousEnabled;
             NextButton.IsEnabled = controls.IsNextEnabled;
             _timelineSeekEnabled = controls.IsPlaybackPositionEnabled;
+            if (!_timelineSeekEnabled)
+            {
+                CancelTimelineSeek();
+            }
             TimelineBar.Opacity = _timelineSeekEnabled ? 1.0 : 0.4;
             UpdateLyricsSeekAvailability();
         }
@@ -647,6 +652,10 @@ public sealed partial class MainWindow : Window
         PreviousButton.IsEnabled = enabled;
         NextButton.IsEnabled = enabled;
         _timelineSeekEnabled = enabled;
+        if (!enabled)
+        {
+            CancelTimelineSeek();
+        }
         TimelineBar.Opacity = enabled ? 1.0 : 0.4;
         UpdateLyricsSeekAvailability();
     }
@@ -683,10 +692,6 @@ public sealed partial class MainWindow : Window
 
     private void UpdateTimelineDisplay()
     {
-        if (_seeking && DateTimeOffset.Now - _seekingAt > TimeSpan.FromSeconds(4))
-        {
-            _seeking = false;
-        }
         if (!_playbackTimeline.HasTimeline)
         {
             _timelineMaxSeconds = 0;
@@ -727,19 +732,18 @@ public sealed partial class MainWindow : Window
 
     private void OnTimelinePointerPressed(object sender, PointerRoutedEventArgs e)
     {
-        if (!_timelineSeekEnabled || _session is null)
+        if (_seeking || !_timelineSeekEnabled || _session is null || !TimelineBar.CapturePointer(e.Pointer))
         {
             return;
         }
         _seeking = true;
-        _seekingAt = DateTimeOffset.Now;
-        TimelineBar.CapturePointer(e.Pointer);
+        _seekingPointerId = e.Pointer.PointerId;
         UpdateTimelineFromPointer(e);
     }
 
     private void OnTimelinePointerMoved(object sender, PointerRoutedEventArgs e)
     {
-        if (!_seeking)
+        if (!_seeking || e.Pointer.PointerId != _seekingPointerId)
         {
             return;
         }
@@ -748,7 +752,7 @@ public sealed partial class MainWindow : Window
 
     private void OnTimelinePointerReleased(object sender, PointerRoutedEventArgs e)
     {
-        if (!_seeking)
+        if (!_seeking || e.Pointer.PointerId != _seekingPointerId)
         {
             return;
         }
@@ -759,11 +763,17 @@ public sealed partial class MainWindow : Window
 
     private void OnTimelinePointerCaptureLost(object sender, PointerRoutedEventArgs e)
     {
-        if (!_seeking)
+        if (!_seeking || e.Pointer.PointerId != _seekingPointerId)
         {
             return;
         }
         _ = CompleteSeekAsync();
+    }
+
+    private void CancelTimelineSeek()
+    {
+        _seeking = false;
+        TimelineBar.ReleasePointerCaptures();
     }
 
     private void UpdateTimelineFromPointer(PointerRoutedEventArgs e)

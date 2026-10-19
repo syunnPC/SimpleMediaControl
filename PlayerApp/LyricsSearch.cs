@@ -145,8 +145,11 @@ internal static class LyricsSearch
         string.Concat(value.Normalize(NormalizationForm.FormKC).EnumerateRunes()
             .Select(r => Rune.IsLetterOrDigit(r) ? r.ToString() : " ")).Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
+    // Preserve kana voicing marks while removing accents, then recompose them
+    // so voiced, semi-voiced, and unvoiced kana remain distinct characters.
     private static string Normalize(string value) => string.Concat(value.Normalize(NormalizationForm.FormKD).EnumerateRunes()
-        .Where(Rune.IsLetterOrDigit).Take(256).Select(r => Rune.ToLowerInvariant(r).ToString()));
+        .Where(r => Rune.IsLetterOrDigit(r) || r.Value is 0x3099 or 0x309A).Take(256)
+        .Select(r => Rune.ToLowerInvariant(r).ToString())).Normalize(NormalizationForm.FormKC);
 
     private static double Similarity(string a, string b)
     {
