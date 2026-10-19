@@ -331,7 +331,7 @@ public sealed partial class MainWindow : Window
         }
         DetachSession();
         _session = session;
-        RefreshLyricsTrack();
+        RefreshLyricsTrack(force: true);
         _selectedAumid = session.SourceAppUserModelId;
         _currentSessionId = session.Id;
         _mediaGeneration++;

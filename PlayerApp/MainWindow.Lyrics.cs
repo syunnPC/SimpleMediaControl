@@ -114,16 +114,16 @@ public sealed partial class MainWindow
     [SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "Click handler referenced by MainWindow.xaml.")]
     private void OnLyricsRetryClick(object sender, RoutedEventArgs e) => _ = LoadLyricsAsync(true);
 
-    private void RefreshLyricsTrack()
+    private void RefreshLyricsTrack(bool force = false)
     {
         var track = LyricsTrack.Create(_session?.Media, _playbackTimeline.EndTime);
         // A reconnect can deliver an empty snapshot before the actual metadata.
         // Duration/album changes do not invalidate lyrics for the playing song.
-        if ((track is null && _session is not null) || track == _lyricsTrack)
+        if (!force && ((track is null && _session is not null) || track == _lyricsTrack))
         {
             return;
         }
-        if (track?.IsSameSong(_lyricsTrack) == true)
+        if (!force && track?.IsSameSong(_lyricsTrack) == true)
         {
             _lyricsTrack = track;
             return;
